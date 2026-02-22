@@ -139,6 +139,6 @@ Apache 2.0 — see [LICENSE](LICENSE).
 
 ## Links
 
-- [Cascade Protocol Specification](https://cascadeprotocol.org/docs/spec)
+- [Getting Started Guide](https://cascadeprotocol.org/docs/getting-started/python/)
 - [Protocol Schema Reference](https://cascadeprotocol.org/docs/cascade-protocol-schemas)
-- [Conformance Test Suite](https://github.com/cascade-protocol/conformance)
+- [Conformance Test Suite](https://github.com/the-cascade-protocol/cascadeprotocol.org/tree/main/conformance)
