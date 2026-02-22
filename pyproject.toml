@@ -36,8 +36,8 @@ all = ["pandas>=2.0.0", "pyshacl>=0.26.0", "jupyter>=1.0.0", "matplotlib>=3.7.0"
 [project.urls]
 Homepage = "https://cascadeprotocol.org"
 Documentation = "https://cascadeprotocol.org/docs"
-Repository = "https://github.com/cascade-protocol/sdk-python"
-"Issue Tracker" = "https://github.com/cascade-protocol/sdk-python/issues"
+Repository = "https://github.com/the-cascade-protocol/sdk-python"
+"Issue Tracker" = "https://github.com/the-cascade-protocol/sdk-python/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cascade_protocol"]
