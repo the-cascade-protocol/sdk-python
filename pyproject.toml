@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cascade-protocol"
+version = "1.0.0"
+description = "Python SDK for the Cascade Protocol — privacy-first health data serialization in RDF/Turtle"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = ["health", "rdf", "turtle", "fhir", "cascade", "privacy"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "rdflib>=7.0.0",
+]
+
+[project.optional-dependencies]
+pandas = ["pandas>=2.0.0"]
+validation = ["pyshacl>=0.26.0"]
+notebooks = ["jupyter>=1.0.0", "matplotlib>=3.7.0", "pandas>=2.0.0"]
+all = ["pandas>=2.0.0", "pyshacl>=0.26.0", "jupyter>=1.0.0", "matplotlib>=3.7.0"]
+
+[project.urls]
+Homepage = "https://cascadeprotocol.org"
+Documentation = "https://cascadeprotocol.org/docs"
+Repository = "https://github.com/cascade-protocol/sdk-python"
+"Issue Tracker" = "https://github.com/cascade-protocol/sdk-python/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cascade_protocol"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
