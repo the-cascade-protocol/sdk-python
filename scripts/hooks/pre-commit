@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# sdk-python pre-commit hook
+# Checks that VOCAB_VERSIONS is updated when vocabulary files change.
+
+set -euo pipefail
+
+VOCAB_CHANGED=$(git diff --cached --name-only | grep -E '^src/cascade_protocol/(models|vocabularies)/' || true)
+
+if [[ -z "$VOCAB_CHANGED" ]]; then
+  exit 0
+fi
+
+if ! git diff --cached --name-only | grep -q "VOCAB_VERSIONS"; then
+  echo ""
+  echo "ERROR: src/cascade_protocol/models/ or vocabularies/ changed but VOCAB_VERSIONS was not updated."
+  echo "Update VOCAB_VERSIONS to reflect the vocabulary versions implemented in this commit,"
+  echo "then stage it: git add VOCAB_VERSIONS"
+  echo ""
+  exit 1
+fi
