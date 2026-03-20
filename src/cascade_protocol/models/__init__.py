@@ -36,6 +36,10 @@ from cascade_protocol.models.immunization import Immunization
 from cascade_protocol.models.procedure import Procedure
 from cascade_protocol.models.family_history import FamilyHistory
 from cascade_protocol.models.coverage import Coverage
+from cascade_protocol.models.encounter import Encounter
+from cascade_protocol.models.medication_administration import MedicationAdministration
+from cascade_protocol.models.implanted_device import ImplantedDevice
+from cascade_protocol.models.imaging_study import ImagingStudy
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
 from cascade_protocol.models.health_profile import HealthProfile
@@ -74,6 +78,10 @@ __all__ = [
     "Procedure",
     "FamilyHistory",
     "Coverage",
+    "Encounter",
+    "MedicationAdministration",
+    "ImplantedDevice",
+    "ImagingStudy",
     "PatientProfile",
     "EmergencyContact",
     "Address",

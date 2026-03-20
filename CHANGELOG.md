@@ -5,6 +5,20 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-20
+
+### Added
+- `Encounter` model (`clinical:Encounter`) — clinical encounters (office visits, consultations)
+- `MedicationAdministration` model (`clinical:MedicationAdministration`) — single-event medication administration records
+- `ImplantedDevice` model (`clinical:ImplantedDevice`) — permanent implanted medical devices
+- `ImagingStudy` model (`clinical:ImagingStudy`) — diagnostic imaging metadata
+- TYPE_MAPPING and TYPE_TO_MAPPING_KEY entries for all new types and coverage v1.3 classes
+- PROPERTY_PREDICATES and PROPERTY_PREDICATES_CAMEL entries for all new clinical and coverage v1.3 properties
+- Core v2.8 FHIR passthrough predicates: `layer_promotion_status`, `fhir_json`, `source_record_date`
+
+### Changed
+- VOCAB_VERSIONS updated: core=2.8, clinical=1.7, coverage=1.3
+
 ## [1.0.0] - 2026-02-22
 
 ### Added

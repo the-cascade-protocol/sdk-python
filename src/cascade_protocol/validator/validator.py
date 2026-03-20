@@ -43,6 +43,13 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "PatientProfile": ["id", "type", "dateOfBirth", "biologicalSex", "dataProvenance", "schemaVersion"],
     "ActivitySnapshot": ["id", "type", "date", "dataProvenance", "schemaVersion"],
     "SleepSnapshot": ["id", "type", "date", "dataProvenance", "schemaVersion"],
+    "Encounter": ["id", "type", "encounterType", "dataProvenance", "schemaVersion"],
+    "MedicationAdministration": ["id", "type", "medicationName", "dataProvenance", "schemaVersion"],
+    "ImplantedDevice": ["id", "type", "deviceType", "dataProvenance", "schemaVersion"],
+    "ImagingStudy": ["id", "type", "studyDescription", "dataProvenance", "schemaVersion"],
+    "ClaimRecord": ["id", "type", "claimType", "dataProvenance", "schemaVersion"],
+    "BenefitStatement": ["id", "type", "adjudicationStatus", "dataProvenance", "schemaVersion"],
+    "DenialNotice": ["id", "type", "deniedProcedureCode", "dataProvenance", "schemaVersion"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -59,6 +66,13 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "PatientProfile": ["id", "type", "date_of_birth", "biological_sex", "data_provenance", "schema_version"],
     "ActivitySnapshot": ["id", "type", "date", "data_provenance", "schema_version"],
     "SleepSnapshot": ["id", "type", "date", "data_provenance", "schema_version"],
+    "Encounter": ["id", "type", "encounter_type", "data_provenance", "schema_version"],
+    "MedicationAdministration": ["id", "type", "medication_name", "data_provenance", "schema_version"],
+    "ImplantedDevice": ["id", "type", "device_type", "data_provenance", "schema_version"],
+    "ImagingStudy": ["id", "type", "study_description", "data_provenance", "schema_version"],
+    "ClaimRecord": ["id", "type", "claim_type", "data_provenance", "schema_version"],
+    "BenefitStatement": ["id", "type", "adjudication_status", "data_provenance", "schema_version"],
+    "DenialNotice": ["id", "type", "denied_procedure_code", "data_provenance", "schema_version"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
