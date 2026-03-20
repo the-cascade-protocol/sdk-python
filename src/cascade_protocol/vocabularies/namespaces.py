@@ -151,6 +151,11 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "denied_procedure_code",
         "name_pred": "coverage:deniedProcedureCode",
     },
+    "appeals": {
+        "rdf_type": "coverage:AppealRecord",
+        "name_key": "appeal_level",
+        "name_pred": "coverage:appealLevel",
+    },
     "patient-profile": {
         "rdf_type": "cascade:PatientProfile",
         "name_key": "name",
@@ -203,6 +208,7 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "ClaimRecord": "claims",
     "BenefitStatement": "benefit-statements",
     "DenialNotice": "denial-notices",
+    "AppealRecord": "appeals",
     "PatientProfile": "patient-profile",
     "ActivitySnapshot": "activity",
     "SleepSnapshot": "sleep",

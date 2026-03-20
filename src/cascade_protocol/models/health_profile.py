@@ -21,6 +21,11 @@ from cascade_protocol.models.immunization import Immunization
 from cascade_protocol.models.procedure import Procedure
 from cascade_protocol.models.family_history import FamilyHistory
 from cascade_protocol.models.coverage import Coverage
+from cascade_protocol.models.encounter import Encounter
+from cascade_protocol.models.medication_administration import MedicationAdministration
+from cascade_protocol.models.implanted_device import ImplantedDevice
+from cascade_protocol.models.imaging_study import ImagingStudy
+from cascade_protocol.models.claim_record import ClaimRecord, BenefitStatement, DenialNotice, AppealRecord
 from cascade_protocol.models.patient_profile import PatientProfile
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
 
@@ -64,6 +69,30 @@ class HealthProfile:
     coverage: list[Coverage] = field(default_factory=list)
     """Insurance coverage and plan records."""
 
+    encounters: list[Encounter] = field(default_factory=list)
+    """Clinical encounter records."""
+
+    medication_administrations: list[MedicationAdministration] = field(default_factory=list)
+    """Medication administration event records."""
+
+    implanted_devices: list[ImplantedDevice] = field(default_factory=list)
+    """Implanted medical device records."""
+
+    imaging_studies: list[ImagingStudy] = field(default_factory=list)
+    """Diagnostic imaging study records."""
+
+    claims: list[ClaimRecord] = field(default_factory=list)
+    """Medical claim records."""
+
+    benefit_statements: list[BenefitStatement] = field(default_factory=list)
+    """Explanation of Benefits records."""
+
+    denial_notices: list[DenialNotice] = field(default_factory=list)
+    """Formal denial of coverage records."""
+
+    appeal_records: list[AppealRecord] = field(default_factory=list)
+    """Formal appeal records contesting denials."""
+
     activity_snapshots: list[ActivitySnapshot] = field(default_factory=list)
     """Daily activity summaries from wearable devices."""
 
@@ -82,6 +111,14 @@ class HealthProfile:
             "procedures": len(self.procedures),
             "family_history": len(self.family_history),
             "coverage": len(self.coverage),
+            "encounters": len(self.encounters),
+            "medication_administrations": len(self.medication_administrations),
+            "implanted_devices": len(self.implanted_devices),
+            "imaging_studies": len(self.imaging_studies),
+            "claims": len(self.claims),
+            "benefit_statements": len(self.benefit_statements),
+            "denial_notices": len(self.denial_notices),
+            "appeal_records": len(self.appeal_records),
             "activity_snapshots": len(self.activity_snapshots),
             "sleep_snapshots": len(self.sleep_snapshots),
         }

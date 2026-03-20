@@ -40,6 +40,7 @@ from cascade_protocol.models.encounter import Encounter
 from cascade_protocol.models.medication_administration import MedicationAdministration
 from cascade_protocol.models.implanted_device import ImplantedDevice
 from cascade_protocol.models.imaging_study import ImagingStudy
+from cascade_protocol.models.claim_record import ClaimRecord, BenefitStatement, DenialNotice, AppealRecord
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
 from cascade_protocol.models.health_profile import HealthProfile
@@ -82,6 +83,10 @@ __all__ = [
     "MedicationAdministration",
     "ImplantedDevice",
     "ImagingStudy",
+    "ClaimRecord",
+    "BenefitStatement",
+    "DenialNotice",
+    "AppealRecord",
     "PatientProfile",
     "EmergencyContact",
     "Address",

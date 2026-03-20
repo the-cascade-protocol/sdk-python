@@ -50,6 +50,7 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "ClaimRecord": ["id", "type", "claimType", "dataProvenance", "schemaVersion"],
     "BenefitStatement": ["id", "type", "adjudicationStatus", "dataProvenance", "schemaVersion"],
     "DenialNotice": ["id", "type", "deniedProcedureCode", "dataProvenance", "schemaVersion"],
+    "AppealRecord": ["id", "type", "appealLevel", "dataProvenance", "schemaVersion"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -73,6 +74,7 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "ClaimRecord": ["id", "type", "claim_type", "data_provenance", "schema_version"],
     "BenefitStatement": ["id", "type", "adjudication_status", "data_provenance", "schema_version"],
     "DenialNotice": ["id", "type", "denied_procedure_code", "data_provenance", "schema_version"],
+    "AppealRecord": ["id", "type", "appeal_level", "data_provenance", "schema_version"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
