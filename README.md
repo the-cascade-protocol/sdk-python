@@ -83,6 +83,14 @@ restored = Medication.from_dataframe(df)
 | `PatientProfile` | `cascade:PatientProfile` | Patient demographics |
 | `ActivitySnapshot` | `health:ActivitySnapshot` | Daily activity data |
 | `SleepSnapshot` | `health:SleepSnapshot` | Nightly sleep data |
+| `Encounter` | `clinical:Encounter` | Clinical encounters and visits |
+| `MedicationAdministration` | `clinical:MedicationAdministration` | Medication administration events |
+| `ImplantedDevice` | `clinical:ImplantedDevice` | Implanted medical devices |
+| `ImagingStudy` | `clinical:ImagingStudy` | Imaging studies and results |
+| `ClaimRecord` | `coverage:ClaimRecord` | Insurance claim records |
+| `BenefitStatement` | `coverage:BenefitStatement` | Explanation of benefits |
+| `DenialNotice` | `coverage:DenialNotice` | Coverage denial notices |
+| `AppealRecord` | `coverage:AppealRecord` | Denial appeal records |
 
 ## Pod API
 
