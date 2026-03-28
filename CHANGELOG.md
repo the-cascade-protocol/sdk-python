@@ -5,6 +5,16 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-27
+
+### Added
+- `content_hashed_uri(resource_type, content_fields, fallback_id=None)` — deterministic URI generator using CDP-UUID algorithm
+- `deterministic_uuid(input_str)` — CDP-UUID hash function. Cross-SDK: `deterministic_uuid("hello") == "aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"`
+- Typed convenience helpers: `patient_uri()`, `immunization_uri()`, `observation_uri()`, `condition_uri()`, `allergy_uri()`, `medication_uri()`
+- All symbols exported from `cascade_protocol` package root
+- Cross-SDK conformance test vectors
+- 31 tests total
+
 ## [1.1.0] - 2026-03-20
 
 ### Added
