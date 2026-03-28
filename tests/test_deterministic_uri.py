@@ -7,6 +7,9 @@ as cascade-cli's contentHashedUri() implementation.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from cascade_protocol.utils.deterministic_uri import deterministic_uuid, content_hashed_uri
@@ -225,3 +228,43 @@ def test_top_level_exports_are_same_functions():
 def test_top_level_hello_vector():
     """Top-level re-export must pass the cross-SDK test vector."""
     assert top_level_deterministic_uuid("hello") == "aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"
+
+
+# ---------------------------------------------------------------------------
+# Conformance fixtures (REC-1)
+# ---------------------------------------------------------------------------
+
+_FIXTURES_PATH = Path("/Users/jedr/Documents/Development/conformance/fixtures/deterministic-ids/test-vectors.json")
+_FIXTURES = json.loads(_FIXTURES_PATH.read_text())
+
+_PRIMITIVE_VECTORS = [
+    (v["label"], v["input"], v["expectedUuid"])
+    for v in _FIXTURES["primitiveVectors"]
+]
+
+_CONTENT_HASHED_URI_VECTORS = [
+    (v["label"], v["identityString"], v["expectedUri"])
+    for v in _FIXTURES["contentHashedUriVectors"]
+]
+
+
+@pytest.mark.parametrize("label,input_str,expected_uuid", _PRIMITIVE_VECTORS)
+def test_conformance_primitive_vector(label: str, input_str: str, expected_uuid: str):
+    """Cross-SDK primitive vectors: deterministicUuid must match the fixture."""
+    assert deterministic_uuid(input_str) == expected_uuid, (
+        f"primitiveVector '{label}': deterministic_uuid({input_str!r}) mismatch"
+    )
+
+
+@pytest.mark.parametrize("label,identity_string,expected_uri", _CONTENT_HASHED_URI_VECTORS)
+def test_conformance_content_hashed_uri_vector(label: str, identity_string: str, expected_uri: str):
+    """Cross-SDK contentHashedURI vectors: content_hashed_uri must match the fixture."""
+    # Parse identity string: "ResourceType::key=val|key=val"
+    resource_type, fields_part = identity_string.split("::")
+    fields: dict[str, str] = {}
+    for pair in fields_part.split("|"):
+        key, _, value = pair.partition("=")
+        fields[key] = value
+    assert content_hashed_uri(resource_type, fields) == expected_uri, (
+        f"contentHashedUriVector '{label}': content_hashed_uri mismatch"
+    )
