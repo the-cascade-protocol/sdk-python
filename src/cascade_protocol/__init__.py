@@ -98,6 +98,16 @@ from cascade_protocol.validator.validator import (
     ValidationError,
 )
 from cascade_protocol.pod.pod import Pod, RecordSet
+from cascade_protocol.utils.deterministic_uri import (
+    content_hashed_uri,
+    deterministic_uuid,
+    patient_uri,
+    immunization_uri,
+    observation_uri,
+    condition_uri,
+    allergy_uri,
+    medication_uri,
+)
 from cascade_protocol.vocabularies.namespaces import (
     NAMESPACES,
     TYPE_MAPPING,
@@ -186,6 +196,15 @@ __all__ = [
     # Pod
     "Pod",
     "RecordSet",
+    # Deterministic URI utilities
+    "content_hashed_uri",
+    "deterministic_uuid",
+    "patient_uri",
+    "immunization_uri",
+    "observation_uri",
+    "condition_uri",
+    "allergy_uri",
+    "medication_uri",
     # Vocabulary
     "NAMESPACES",
     "TYPE_MAPPING",
