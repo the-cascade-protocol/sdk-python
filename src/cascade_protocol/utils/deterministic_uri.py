@@ -7,7 +7,7 @@ All Cascade Protocol SDKs generate identical URIs for equivalent records.
 This module implements the same algorithm as cascade-cli's ``contentHashedUri()``.
 
 Cross-SDK test vector:
-    deterministic_uuid("hello") == "aaf4c61d-dcc5-5e8a-adab-ede0f3b482cd"
+    deterministic_uuid("hello") == "aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"
 """
 
 from __future__ import annotations
@@ -28,17 +28,19 @@ def deterministic_uuid(input_str: str) -> str:
         input_str: Arbitrary string to hash.
 
     Returns:
-        A lowercase UUID string, e.g. ``"aaf4c61d-dcc5-5e8a-adab-ede0f3b482cd"``.
+        A lowercase UUID string, e.g. ``"aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"``.
 
     Example::
 
         >>> deterministic_uuid("hello")
-        'aaf4c61d-dcc5-5e8a-adab-ede0f3b482cd'
+        'aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9'
     """
     h = hashlib.sha1(input_str.encode("utf-8")).hexdigest()
-    variant_byte = (int(h[15:17], 16) & 0x3F) | 0x80
+    # Layout matches TypeScript deterministicUuid(): h[12] is skipped (replaced by version '5')
+    # Variant: bits from h[16:18]; then h[18:20]; then h[20:32]
+    variant_byte = (int(h[16:18], 16) & 0x3F) | 0x80
     v = format(variant_byte, "02x")
-    return f"{h[0:8]}-{h[8:12]}-5{h[12:15]}-{v}{h[17:19]}-{h[19:31]}"
+    return f"{h[0:8]}-{h[8:12]}-5{h[13:16]}-{v}{h[18:20]}-{h[20:32]}"
 
 
 def content_hashed_uri(

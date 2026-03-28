@@ -28,7 +28,7 @@ from cascade_protocol import (
 
 def test_hello_vector():
     """The canonical cross-SDK test vector must match exactly."""
-    assert deterministic_uuid("hello") == "aaf4c61d-dcc5-5e8a-adab-ede0f3b482cd"
+    assert deterministic_uuid("hello") == "aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"
 
 
 def test_uuid_format():
@@ -224,4 +224,4 @@ def test_top_level_exports_are_same_functions():
 
 def test_top_level_hello_vector():
     """Top-level re-export must pass the cross-SDK test vector."""
-    assert top_level_deterministic_uuid("hello") == "aaf4c61d-dcc5-5e8a-adab-ede0f3b482cd"
+    assert top_level_deterministic_uuid("hello") == "aaf4c61d-dcc5-58a2-9abe-de0f3b482cd9"
