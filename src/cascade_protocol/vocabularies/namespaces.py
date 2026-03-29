@@ -181,6 +181,26 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "vital_type",
         "name_pred": "clinical:vitalType",
     },
+    "clinical-social-history": {
+        "rdf_type": "clinical:SocialHistoryRecord",
+        "name_key": "social_history_category",
+        "name_pred": "clinical:socialHistoryCategory",
+    },
+    "ai-extraction-activities": {
+        "rdf_type": "cascade:AIExtractionActivity",
+        "name_key": "extraction_model",
+        "name_pred": "cascade:extractionModel",
+    },
+    "ai-discarded-extractions": {
+        "rdf_type": "cascade:AIDiscardedExtraction",
+        "name_key": "discard_reason",
+        "name_pred": "cascade:discardReason",
+    },
+    "social-history-consents": {
+        "rdf_type": "cascade:SocialHistoryConsent",
+        "name_key": "consent_scope",
+        "name_pred": "cascade:consentScope",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -212,6 +232,10 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "PatientProfile": "patient-profile",
     "ActivitySnapshot": "activity",
     "SleepSnapshot": "sleep",
+    "ClinicalSocialHistoryRecord": "clinical-social-history",
+    "AIExtractionActivity": "ai-extraction-activities",
+    "AIDiscardedExtraction": "ai-discarded-extractions",
+    "SocialHistoryConsent": "social-history-consents",
 }
 
 # ---------------------------------------------------------------------------
@@ -433,6 +457,27 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # -- Core predicates (cascade: vocabulary) --
     "data_provenance": "cascade:dataProvenance",
     "schema_version": "cascade:schemaVersion",
+
+    # -- Clinical v1.8 -- SocialHistoryRecord predicates --
+    "social_history_category": "clinical:socialHistoryCategory",
+    "packs_per_year": "clinical:packsPerYear",
+    "substance_type": "clinical:substanceType",
+    "frequency_description": "clinical:frequencyDescription",
+    "social_history_consent": "clinical:socialHistoryConsent",
+
+    # -- Core v3.0 -- AIExtractionActivity predicates --
+    "extraction_confidence": "cascade:extractionConfidence",
+    "extraction_model": "cascade:extractionModel",
+    "source_narrative_section": "cascade:sourceNarrativeSection",
+    "requires_user_review": "cascade:requiresUserReview",
+
+    # -- Core v3.0 -- AIDiscardedExtraction predicates --
+    "discard_reason": "cascade:discardReason",
+
+    # -- Core v3.0 -- SocialHistoryConsent predicates --
+    "consent_scope": "cascade:consentScope",
+    "consent_granted_at": "cascade:consentGrantedAt",
+    "consent_revoked_at": "cascade:consentRevokedAt",
 }
 
 # Also provide camelCase -> predicate mapping for JSON input compatibility
@@ -595,6 +640,23 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "sourceRecordDate": "cascade:sourceRecordDate",
     "dataProvenance": "cascade:dataProvenance",
     "schemaVersion": "cascade:schemaVersion",
+    # -- Clinical v1.8 -- SocialHistoryRecord predicates --
+    "socialHistoryCategory": "clinical:socialHistoryCategory",
+    "packsPerYear": "clinical:packsPerYear",
+    "substanceType": "clinical:substanceType",
+    "frequencyDescription": "clinical:frequencyDescription",
+    "socialHistoryConsent": "clinical:socialHistoryConsent",
+    # -- Core v3.0 -- AIExtractionActivity predicates --
+    "extractionConfidence": "cascade:extractionConfidence",
+    "extractionModel": "cascade:extractionModel",
+    "sourceNarrativeSection": "cascade:sourceNarrativeSection",
+    "requiresUserReview": "cascade:requiresUserReview",
+    # -- Core v3.0 -- AIDiscardedExtraction predicates --
+    "discardReason": "cascade:discardReason",
+    # -- Core v3.0 -- SocialHistoryConsent predicates --
+    "consentScope": "cascade:consentScope",
+    "consentGrantedAt": "cascade:consentGrantedAt",
+    "consentRevokedAt": "cascade:consentRevokedAt",
 }
 
 

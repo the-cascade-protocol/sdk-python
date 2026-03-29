@@ -2,9 +2,11 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=2.8
+core=3.0
 health=2.3
-clinical=1.7
+clinical=1.8
 coverage=1.3  # ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
+# core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
+# clinical=1.8: ClinicalSocialHistoryRecord dataclass added (EHR-extracted, 42 CFR Part 2)
 checkup=3.2
 pots=1.4

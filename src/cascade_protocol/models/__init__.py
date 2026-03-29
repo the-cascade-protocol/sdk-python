@@ -44,6 +44,8 @@ from cascade_protocol.models.claim_record import ClaimRecord, BenefitStatement, 
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
 from cascade_protocol.models.health_profile import HealthProfile
+from cascade_protocol.models.social_history_clinical import ClinicalSocialHistoryRecord
+from cascade_protocol.models.ai_extraction import AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent
 
 __all__ = [
     # Base
@@ -94,4 +96,10 @@ __all__ = [
     "ActivitySnapshot",
     "SleepSnapshot",
     "HealthProfile",
+    # Clinical social history (EHR-extracted, clinical v1.8)
+    "ClinicalSocialHistoryRecord",
+    # AI extraction provenance (core v3.0)
+    "AIExtractionActivity",
+    "AIDiscardedExtraction",
+    "SocialHistoryConsent",
 ]
