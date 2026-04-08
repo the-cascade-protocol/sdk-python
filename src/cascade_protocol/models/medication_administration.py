@@ -34,7 +34,7 @@ class MedicationAdministration(CascadeRecord):
     medication_name: str = ""
     """
     Name of the medication administered.
-    Maps to ``health:medicationName`` in Turtle serialization.
+    Maps to ``clinical:drugName`` in Turtle serialization.
     """
 
     administered_date: str | None = None

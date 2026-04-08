@@ -227,9 +227,14 @@ def _validate_turtle_structural(turtle: str) -> list[str]:
         RDF_TYPE = RDF.type
         CASCADE_NS = NAMESPACES["cascade"]
 
-        # Build reverse type map
+        # Build reverse type map (RDF type URI -> record type string)
+        from cascade_protocol.vocabularies.namespaces import TYPE_TO_MAPPING_KEY
+        # Reverse lookup: mapping_key -> canonical record type string
+        _mk_to_rt: dict[str, str] = {}
+        for _rt, _mk in TYPE_TO_MAPPING_KEY.items():
+            _mk_to_rt.setdefault(_mk, _rt)
         reverse_type: dict[str, str] = {}
-        for mapping in TYPE_MAPPING.values():
+        for mapping_key, mapping in TYPE_MAPPING.items():
             rdf_type = mapping["rdf_type"]
             colon_idx = rdf_type.find(":")
             if colon_idx >= 0:
@@ -237,7 +242,8 @@ def _validate_turtle_structural(turtle: str) -> list[str]:
                 local_name = rdf_type[colon_idx + 1:]
                 ns_uri = NAMESPACES.get(ns_prefix)
                 if ns_uri:
-                    reverse_type[f"{ns_uri}{local_name}"] = local_name
+                    record_type_str = _mk_to_rt.get(mapping_key, local_name)
+                    reverse_type[f"{ns_uri}{local_name}"] = record_type_str
 
         reverse_pred = build_reverse_predicate_map()
         errors: list[str] = []

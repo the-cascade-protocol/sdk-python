@@ -52,11 +52,11 @@ class TestMedicationSerialization:
         )
         turtle = serialize(med)
         assert "@prefix cascade: <https://ns.cascadeprotocol.org/core/v1#>" in turtle
-        assert "@prefix health: <https://ns.cascadeprotocol.org/health/v1#>" in turtle
-        assert "a health:MedicationRecord" in turtle
-        assert "health:medicationName" in turtle
+        assert "@prefix clinical: <https://ns.cascadeprotocol.org/clinical/v1#>" in turtle
+        assert "a clinical:Medication" in turtle
+        assert "clinical:drugName" in turtle
         assert '"Lisinopril"' in turtle
-        assert "health:isActive true" in turtle
+        assert "clinical:status true" in turtle
         assert "cascade:dataProvenance cascade:ClinicalGenerated" in turtle
         assert 'cascade:schemaVersion "1.3"' in turtle
 
@@ -84,7 +84,7 @@ class TestMedicationSerialization:
         )
         turtle = serialize(med)
         assert "@prefix rxnorm:" in turtle
-        assert "health:rxNormCode <http://www.nlm.nih.gov/research/umls/rxnorm/197884>" in turtle
+        assert "clinical:rxNormCode <http://www.nlm.nih.gov/research/umls/rxnorm/197884>" in turtle
 
     def test_medication_with_drug_codes(self):
         med = Medication(
@@ -113,7 +113,7 @@ class TestMedicationSerialization:
             schema_version="1.3",
         )
         turtle = serialize(med)
-        assert "health:isActive false" in turtle
+        assert "clinical:status false" in turtle
 
     def test_medication_with_affects_vital_signs(self):
         med = Medication(
@@ -328,7 +328,7 @@ class TestSerializeFromDict:
             "route": "oral",
         }
         turtle = serialize_from_dict(data)
-        assert "a health:MedicationRecord" in turtle
+        assert "a clinical:Medication" in turtle
         assert '"Lisinopril"' in turtle
         assert "cascade:dataProvenance cascade:ClinicalGenerated" in turtle
 
@@ -374,7 +374,7 @@ class TestWellnessSerialization:
 class TestPrefixOrdering:
     """Verify that prefix declarations appear in the canonical order."""
 
-    def test_cascade_before_health(self):
+    def test_cascade_before_clinical(self):
         med = Medication(
             id="urn:uuid:test-med",
             medication_name="Test",
@@ -387,7 +387,7 @@ class TestPrefixOrdering:
         prefix_lines = [l for l in lines if l.startswith("@prefix")]
         prefix_names = [l.split(":")[0].replace("@prefix ", "").strip() for l in prefix_lines]
         cascade_idx = prefix_names.index("cascade")
-        health_idx = prefix_names.index("health")
+        clinical_idx = prefix_names.index("clinical")
         xsd_idx = prefix_names.index("xsd")
-        assert cascade_idx < health_idx, "cascade prefix must come before health"
-        assert health_idx < xsd_idx, "health prefix must come before xsd"
+        assert cascade_idx < clinical_idx, "cascade prefix must come before clinical"
+        assert clinical_idx < xsd_idx, "clinical prefix must come before xsd"

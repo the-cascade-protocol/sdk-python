@@ -10,7 +10,9 @@ Pod directory layout (reference patient pod structure):
         index.ttl            -- Root container manifest
         manifest.ttl         -- Full resource list
         profile/
-            card.ttl
+            card.ttl         -- Public WebID profile (name + discovery links only)
+            extended.ttl     -- Private PHI (DOB, sex, address, phone, email)
+            health.ttl       -- Rich Cascade health profile (optional, Swift SDK)
         clinical/
             medications.ttl
             conditions.ttl
@@ -93,7 +95,12 @@ _QUERY_MAP: dict[str, dict[str, Any]] = {
         "record_type": "InsurancePlan",
     },
     "patient-profile": {
-        "paths": ["clinical/patient-profile.ttl", "profile/card.ttl"],
+        "paths": [
+            "clinical/patient-profile.ttl",
+            "profile/card.ttl",
+            "profile/extended.ttl",
+            "profile/health.ttl",
+        ],
         "record_type": "PatientProfile",
     },
     "activity": {

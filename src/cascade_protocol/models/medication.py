@@ -4,8 +4,8 @@ Medication data model for the Cascade Protocol.
 Represents a medication record with fields sourced from EHR imports,
 FHIR MedicationRequest/MedicationStatement resources, or self-reported data.
 
-RDF type: ``health:MedicationRecord``
-Vocabulary: https://ns.cascadeprotocol.org/health/v1#
+RDF type: ``clinical:Medication``
+Vocabulary: https://ns.cascadeprotocol.org/clinical/v1#
 
 See: https://cascadeprotocol.org/docs/cascade-protocol-schemas
 """
@@ -26,7 +26,7 @@ class Medication(CascadeRecord):
     Required fields: ``medication_name``, ``is_active``, ``data_provenance``, ``schema_version``.
     All date fields use ISO 8601 string format.
 
-    Serializes as ``health:MedicationRecord`` in Turtle.
+    Serializes as ``clinical:Medication`` in Turtle.
     """
 
     type: str = field(default="MedicationRecord", init=True)
@@ -34,19 +34,19 @@ class Medication(CascadeRecord):
     medication_name: str = ""
     """
     Name of the medication.
-    Maps to ``health:medicationName`` in Turtle serialization.
+    Maps to ``clinical:drugName`` in Turtle serialization.
     """
 
     is_active: bool = True
     """
     Whether the medication is currently active.
-    Maps to ``health:isActive`` in Turtle serialization.
+    Maps to ``clinical:status`` in Turtle serialization.
     """
 
     dose: str | None = None
     """
     Prescribed dose (e.g., ``"20 mg"``, ``"90 mcg/actuation"``).
-    Maps to ``health:dose`` in Turtle serialization.
+    Maps to ``clinical:dosage`` in Turtle serialization.
     """
 
     frequency: str | None = None
@@ -82,7 +82,7 @@ class Medication(CascadeRecord):
     rx_norm_code: str | None = None
     """
     RxNorm concept URI for this medication.
-    Maps to ``health:rxNormCode`` in Turtle serialization as a URI reference.
+    Maps to ``clinical:rxNormCode`` in Turtle serialization as a URI reference.
     """
 
     drug_codes: list[str] | None = None

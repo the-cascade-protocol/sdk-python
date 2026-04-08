@@ -155,7 +155,7 @@ class CascadeRecord:
     available for traceability.
 
     - ``id`` maps to the RDF subject URI (e.g., ``urn:uuid:...``)
-    - ``type`` maps to ``rdf:type`` (e.g., ``health:MedicationRecord``)
+    - ``type`` maps to ``rdf:type`` (e.g., ``clinical:Medication``)
     - ``data_provenance`` maps to ``cascade:dataProvenance``
     - ``schema_version`` maps to ``cascade:schemaVersion``
 

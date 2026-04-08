@@ -55,6 +55,11 @@ _ADDITIONAL_REVERSE = {
 
 _REVERSE_PREDICATE_MAP = build_reverse_predicate_map(_ADDITIONAL_REVERSE)
 
+# Build reverse lookup: mapping_key -> record_type_string (from TYPE_TO_MAPPING_KEY)
+_MAPPING_KEY_TO_RECORD_TYPE: dict[str, str] = {}
+for _rt, _mk in TYPE_TO_MAPPING_KEY.items():
+    _MAPPING_KEY_TO_RECORD_TYPE.setdefault(_mk, _rt)
+
 # Reverse type map: full RDF type URI -> (record_type_string, mapping_key)
 def _build_reverse_type_map() -> dict[str, tuple[str, str]]:
     result: dict[str, tuple[str, str]] = {}
@@ -66,7 +71,11 @@ def _build_reverse_type_map() -> dict[str, tuple[str, str]]:
             local_name = rdf_type[colon_idx + 1:]
             ns_uri = NAMESPACES.get(ns_prefix)
             if ns_uri:
-                result[f"{ns_uri}{local_name}"] = (local_name, mapping_key)
+                # Use the canonical record type string from TYPE_TO_MAPPING_KEY
+                # (e.g. "MedicationRecord" for mapping_key "medications")
+                # rather than the RDF local name (which may differ, e.g. "Medication").
+                record_type_str = _MAPPING_KEY_TO_RECORD_TYPE.get(mapping_key, local_name)
+                result[f"{ns_uri}{local_name}"] = (record_type_str, mapping_key)
     return result
 
 _REVERSE_TYPE_MAP = _build_reverse_type_map()
@@ -117,6 +126,7 @@ _TYPE_CLASS_MAP: dict[str, type] = {
 
 def _resolve_type_uri(type_str: str) -> str | None:
     """Resolve a record type string (e.g. 'MedicationRecord') to a full RDF type URI."""
+    # First try direct match via local name of rdf_type
     for mapping in TYPE_MAPPING.values():
         rdf_type = mapping["rdf_type"]
         colon_idx = rdf_type.find(":")
@@ -124,6 +134,21 @@ def _resolve_type_uri(type_str: str) -> str | None:
             ns_prefix = rdf_type[:colon_idx]
             local_name = rdf_type[colon_idx + 1:]
             if local_name == type_str:
+                ns_uri = NAMESPACES.get(ns_prefix)
+                if ns_uri:
+                    return f"{ns_uri}{local_name}"
+    # Fallback: look up via TYPE_TO_MAPPING_KEY (handles cases where the
+    # internal type string differs from the RDF local name, e.g.
+    # "MedicationRecord" -> mapping_key "medications" -> rdf_type "clinical:Medication")
+    mapping_key = TYPE_TO_MAPPING_KEY.get(type_str)
+    if mapping_key:
+        mapping = TYPE_MAPPING.get(mapping_key)
+        if mapping:
+            rdf_type = mapping["rdf_type"]
+            colon_idx = rdf_type.find(":")
+            if colon_idx >= 0:
+                ns_prefix = rdf_type[:colon_idx]
+                local_name = rdf_type[colon_idx + 1:]
                 ns_uri = NAMESPACES.get(ns_prefix)
                 if ns_uri:
                     return f"{ns_uri}{local_name}"

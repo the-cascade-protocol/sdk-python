@@ -23,12 +23,12 @@ SAMPLE_MEDICATIONS_TTL = textwrap.dedent("""\
     @prefix clinical: <https://ns.cascadeprotocol.org/clinical/v1#> .
     @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-    <urn:uuid:med0-0001-aaaa-bbbb-ccccddddeeee> a health:MedicationRecord ;
-        health:medicationName "Lisinopril" ;
-        health:isActive true ;
+    <urn:uuid:med0-0001-aaaa-bbbb-ccccddddeeee> a clinical:Medication ;
+        clinical:drugName "Lisinopril" ;
+        clinical:status true ;
         cascade:dataProvenance cascade:ClinicalGenerated ;
         cascade:schemaVersion "1.3" ;
-        health:dose "20 mg" ;
+        clinical:dosage "20 mg" ;
         health:frequency "once daily" .
 """)
 

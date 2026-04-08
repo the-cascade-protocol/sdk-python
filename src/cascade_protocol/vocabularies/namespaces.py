@@ -44,6 +44,12 @@ NAMESPACES: dict[str, str] = {
     "ucum": "http://unitsofmeasure.org/",
     # FOAF namespace
     "foaf": "http://xmlns.com/foaf/0.1/",
+    # vCard namespace for contact information
+    "vcard": "http://www.w3.org/2006/vcard/ns#",
+    # Solid Terms namespace for WebID profile discovery
+    "solid": "http://www.w3.org/ns/solid/terms#",
+    # Personal Information Management (PIM) namespace for Solid storage discovery
+    "pim": "http://www.w3.org/ns/pim/space#",
     # Linked Data Platform namespace
     "ldp": "http://www.w3.org/ns/ldp#",
     # Dublin Core Terms namespace
@@ -67,9 +73,9 @@ NAMESPACES: dict[str, str] = {
 #   name_pred - The Turtle predicate for the name field (prefixed name)
 TYPE_MAPPING: dict[str, dict[str, str]] = {
     "medications": {
-        "rdf_type": "health:MedicationRecord",
+        "rdf_type": "clinical:Medication",
         "name_key": "medication_name",
-        "name_pred": "health:medicationName",
+        "name_pred": "clinical:drugName",
     },
     "conditions": {
         "rdf_type": "health:ConditionRecord",
@@ -124,7 +130,7 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
     "medication-administrations": {
         "rdf_type": "clinical:MedicationAdministration",
         "name_key": "medication_name",
-        "name_pred": "health:medicationName",
+        "name_pred": "clinical:drugName",
     },
     "implanted-devices": {
         "rdf_type": "clinical:ImplantedDevice",
@@ -252,16 +258,16 @@ CURRENT_SCHEMA_VERSION = "1.3"
 # Mapping from Python snake_case property names to their Turtle predicates.
 # Used during serialization to convert Python field values to RDF triples.
 PROPERTY_PREDICATES: dict[str, str] = {
-    # -- Medication predicates (health: vocabulary) --
-    "medication_name": "health:medicationName",
-    "dose": "health:dose",
+    # -- Medication predicates (clinical: vocabulary) --
+    "medication_name": "clinical:drugName",
+    "dose": "clinical:dosage",
     "frequency": "health:frequency",
     "route": "health:route",
     "prescriber": "health:prescriber",
     "start_date": "health:startDate",
     "end_date": "health:endDate",
-    "is_active": "health:isActive",
-    "rx_norm_code": "health:rxNormCode",
+    "is_active": "clinical:status",
+    "rx_norm_code": "clinical:rxNormCode",
     "medication_class": "health:medicationClass",
     "affects_vital_signs": "health:affectsVitalSigns",
 
@@ -350,9 +356,11 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "rx_pcn": "coverage:rxPcn",
     "rx_group": "coverage:rxGroup",
 
-    # -- Patient profile predicates (cascade: and foaf: vocabularies) --
+    # -- Patient profile predicates (cascade:, foaf:, and vcard: vocabularies) --
     "date_of_birth": "cascade:dateOfBirth",
     "biological_sex": "cascade:biologicalSex",
+    "contact_phone": "vcard:hasTelephone",
+    "contact_email": "vcard:hasEmail",
     "computed_age": "cascade:computedAge",
     "age_group": "cascade:ageGroup",
     "gender_identity": "cascade:genderIdentity",
@@ -483,15 +491,15 @@ PROPERTY_PREDICATES: dict[str, str] = {
 # Also provide camelCase -> predicate mapping for JSON input compatibility
 # (conformance fixtures use camelCase keys from the TypeScript SDK)
 PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
-    "medicationName": "health:medicationName",
-    "dose": "health:dose",
+    "medicationName": "clinical:drugName",
+    "dose": "clinical:dosage",
     "frequency": "health:frequency",
     "route": "health:route",
     "prescriber": "health:prescriber",
     "startDate": "health:startDate",
     "endDate": "health:endDate",
-    "isActive": "health:isActive",
-    "rxNormCode": "health:rxNormCode",
+    "isActive": "clinical:status",
+    "rxNormCode": "clinical:rxNormCode",
     "medicationClass": "health:medicationClass",
     "affectsVitalSigns": "health:affectsVitalSigns",
     "conditionName": "health:conditionName",
@@ -567,6 +575,8 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "rxGroup": "coverage:rxGroup",
     "dateOfBirth": "cascade:dateOfBirth",
     "biologicalSex": "cascade:biologicalSex",
+    "contactPhone": "vcard:hasTelephone",
+    "contactEmail": "vcard:hasEmail",
     "computedAge": "cascade:computedAge",
     "ageGroup": "cascade:ageGroup",
     "genderIdentity": "cascade:genderIdentity",
@@ -666,7 +676,7 @@ def build_reverse_predicate_map(
     """
     Build a reverse mapping from full predicate URI to Python property name.
 
-    Expands each PROPERTY_PREDICATES shorthand (e.g. 'health:medicationName')
+    Expands each PROPERTY_PREDICATES shorthand (e.g. 'clinical:drugName')
     to a full URI and maps it back to the snake_case property key.
 
     Args:
