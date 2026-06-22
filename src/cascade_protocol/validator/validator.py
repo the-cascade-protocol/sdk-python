@@ -51,6 +51,12 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "BenefitStatement": ["id", "type", "adjudicationStatus", "dataProvenance", "schemaVersion"],
     "DenialNotice": ["id", "type", "deniedProcedureCode", "dataProvenance", "schemaVersion"],
     "AppealRecord": ["id", "type", "appealLevel", "dataProvenance", "schemaVersion"],
+    # -- health v2.4 --
+    "SocialHistoryRecord": ["id", "type", "dataProvenance", "schemaVersion"],
+    # -- core v3.1-3.3 --
+    "AdvisoryApplicationActivity": ["id", "type", "dataProvenance", "schemaVersion"],
+    "AIGenerationActivity": ["id", "type", "dataProvenance", "schemaVersion"],
+    "ProxyAgent": ["id", "type", "dataProvenance", "schemaVersion"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -75,6 +81,12 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "BenefitStatement": ["id", "type", "adjudication_status", "data_provenance", "schema_version"],
     "DenialNotice": ["id", "type", "denied_procedure_code", "data_provenance", "schema_version"],
     "AppealRecord": ["id", "type", "appeal_level", "data_provenance", "schema_version"],
+    # -- health v2.4 --
+    "SocialHistoryRecord": ["id", "type", "data_provenance", "schema_version"],
+    # -- core v3.1-3.3 --
+    "AdvisoryApplicationActivity": ["id", "type", "data_provenance", "schema_version"],
+    "AIGenerationActivity": ["id", "type", "data_provenance", "schema_version"],
+    "ProxyAgent": ["id", "type", "data_provenance", "schema_version"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
@@ -82,6 +94,7 @@ _VALID_PROVENANCE_TYPES = frozenset({
     "DeviceGenerated",
     "SelfReported",
     "AIExtracted",
+    "AIAsserted",
     "AIGenerated",
     "EHRVerified",
 })

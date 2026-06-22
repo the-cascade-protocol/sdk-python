@@ -123,12 +123,14 @@ _INTEGER_TYPED_FIELDS_SNAKE: set[str] = {
     "refills_allowed",
     "supply_duration_days",
     "onset_age",
+    "applied_triples_count",
 }
 _INTEGER_TYPED_FIELDS_CAMEL: set[str] = {
     "computedAge",
     "refillsAllowed",
     "supplyDurationDays",
     "onsetAge",
+    "appliedTriplesCount",
 }
 
 # Preferred prefix declaration order.

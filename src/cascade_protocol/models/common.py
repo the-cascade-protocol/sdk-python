@@ -24,6 +24,7 @@ ProvenanceType = Literal[
     "DeviceGenerated",
     "SelfReported",
     "AIExtracted",
+    "AIAsserted",
     "AIGenerated",
     "EHRVerified",
 ]

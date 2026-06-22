@@ -2,12 +2,16 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.0
-health=2.3
-clinical=1.8
-coverage=1.3  # ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
+core=3.3
+health=2.4
+clinical=1.9
+coverage=1.3
+# coverage=1.3: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
 # core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
+# core=3.1-3.3: AdvisoryApplicationActivity, AIGenerationActivity, GenerationTrigger, ProxyAgent, AIAsserted provenance leaf added
 # clinical=1.8: ClinicalSocialHistoryRecord dataclass added (EHR-extracted, 42 CFR Part 2)
+# clinical=1.9: cascade:AIExtracted permitted as a dataProvenance value on clinical records
+# health=2.4: SocialHistoryRecord dataclass added (consumer-reported lifestyle data)
 checkup=3.2
 pots=1.4
 # clinical=1.8: Medication RDF type and predicates migrated from health: to clinical: namespace

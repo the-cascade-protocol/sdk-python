@@ -52,7 +52,16 @@ from cascade_protocol.models import (
     ActivitySnapshot,
     SleepSnapshot,
     HealthProfile,
+    ClinicalSocialHistoryRecord,
+    SocialHistoryRecord,
+    AIExtractionActivity,
+    AIDiscardedExtraction,
+    SocialHistoryConsent,
+    AdvisoryApplicationActivity,
+    AIGenerationActivity,
+    ProxyAgent,
     # Type aliases
+    GenerationTrigger,
     ProvenanceType,
     ProvenanceClass,
     ConditionStatus,
@@ -116,7 +125,7 @@ from cascade_protocol.vocabularies.namespaces import (
     CURRENT_SCHEMA_VERSION,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.4.0"
 __author__ = "Cascade Agentic Labs"
 __license__ = "Apache-2.0"
 
@@ -149,7 +158,16 @@ __all__ = [
     "ActivitySnapshot",
     "SleepSnapshot",
     "HealthProfile",
+    "ClinicalSocialHistoryRecord",
+    "SocialHistoryRecord",
+    "AIExtractionActivity",
+    "AIDiscardedExtraction",
+    "SocialHistoryConsent",
+    "AdvisoryApplicationActivity",
+    "AIGenerationActivity",
+    "ProxyAgent",
     # Type aliases
+    "GenerationTrigger",
     "ProvenanceType",
     "ProvenanceClass",
     "ConditionStatus",

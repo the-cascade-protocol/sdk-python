@@ -45,7 +45,14 @@ from cascade_protocol.models.patient_profile import PatientProfile, EmergencyCon
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
 from cascade_protocol.models.health_profile import HealthProfile
 from cascade_protocol.models.social_history_clinical import ClinicalSocialHistoryRecord
+from cascade_protocol.models.social_history import SocialHistoryRecord
 from cascade_protocol.models.ai_extraction import AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent
+from cascade_protocol.models.advisory import (
+    AdvisoryApplicationActivity,
+    AIGenerationActivity,
+    ProxyAgent,
+    GenerationTrigger,
+)
 
 __all__ = [
     # Base
@@ -98,8 +105,15 @@ __all__ = [
     "HealthProfile",
     # Clinical social history (EHR-extracted, clinical v1.8)
     "ClinicalSocialHistoryRecord",
+    # Consumer-reported social history (health v2.4)
+    "SocialHistoryRecord",
     # AI extraction provenance (core v3.0)
     "AIExtractionActivity",
     "AIDiscardedExtraction",
     "SocialHistoryConsent",
+    # Advisory / AI generation / proxy provenance (core v3.1-3.3)
+    "AdvisoryApplicationActivity",
+    "AIGenerationActivity",
+    "ProxyAgent",
+    "GenerationTrigger",
 ]

@@ -5,6 +5,22 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-22
+
+### Added
+- `SocialHistoryRecord` model (`health:SocialHistoryRecord`) — consumer-reported social history (smoking status, alcohol use, exercise frequency, occupational exposure). Distinct from the EHR-extracted `ClinicalSocialHistoryRecord` (`clinical:SocialHistoryRecord`).
+- `AdvisoryApplicationActivity` model (`cascade:AdvisoryApplicationActivity`) — PROV-O Activity for advisory-triple application (`appliedTriplesCount`).
+- `AIGenerationActivity` model (`cascade:AIGenerationActivity`) — PROV-O Activity for ungrounded general-AI generation; reuses `extractionModel`/`extractionConfidence`/`sourceNarrativeSection`/`requiresUserReview` and adds `promptVersion`, `generationTemperature`, `trigger`.
+- `ProxyAgent` model (`cascade:ProxyAgent`) — PROV-O Agent acting on behalf of a patient (`actsForPatient`, `proxyWebID`, `proxyRelationship`, `proxyScope`, `proxyGrantedAt`, `proxyRevokedAt`).
+- `GenerationTrigger` type alias for the `cascade:GenerationTrigger` enum individuals (`InitialGeneration`, `RegenerationAfterReclassification`, `AudienceRetargeting`).
+- `AIAsserted` added as a valid `cascade:dataProvenance` value (DataProvenance leaf for ungrounded general-AI content; distinct from `AIExtracted`).
+- TYPE_MAPPING / TYPE_TO_MAPPING_KEY entries and PROPERTY_PREDICATES (snake + camel) for all new classes and properties.
+- All new classes and the previously model-only AI-extraction / clinical-social-history classes exported from the `cascade_protocol` package root.
+
+### Changed
+- VOCAB_VERSIONS updated: core=3.3, health=2.4, clinical=1.9 (clinical v1.9 permits `cascade:AIExtracted` provenance on clinical records — already accepted).
+- Moved the inline comment off the `coverage=1.3` line in VOCAB_VERSIONS so the drift parser reads the version cleanly.
+
 ## [1.2.0] - 2026-03-27
 
 ### Added

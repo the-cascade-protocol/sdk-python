@@ -36,6 +36,12 @@ from cascade_protocol.models.family_history import FamilyHistory
 from cascade_protocol.models.coverage import Coverage
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
 from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
+from cascade_protocol.models.social_history import SocialHistoryRecord
+from cascade_protocol.models.advisory import (
+    AdvisoryApplicationActivity,
+    AIGenerationActivity,
+    ProxyAgent,
+)
 from cascade_protocol.vocabularies.namespaces import (
     NAMESPACES,
     TYPE_MAPPING,
@@ -90,10 +96,12 @@ _INTEGER_FIELDS = {
     "computed_age", "refills_allowed", "supply_duration_days", "onset_age",
     "steps", "active_minutes", "calories", "awakenings",
     "total_sleep_minutes", "deep_sleep_minutes", "rem_sleep_minutes", "light_sleep_minutes",
+    "applied_triples_count",
 }
 
 _FLOAT_FIELDS = {
     "value", "reference_range_low", "reference_range_high", "distance",
+    "extraction_confidence", "generation_temperature",
 }
 
 _ARRAY_FIELDS = {
@@ -118,6 +126,10 @@ _TYPE_CLASS_MAP: dict[str, type] = {
     "PatientProfile": PatientProfile,
     "ActivitySnapshot": ActivitySnapshot,
     "SleepSnapshot": SleepSnapshot,
+    "SocialHistoryRecord": SocialHistoryRecord,
+    "AdvisoryApplicationActivity": AdvisoryApplicationActivity,
+    "AIGenerationActivity": AIGenerationActivity,
+    "ProxyAgent": ProxyAgent,
 }
 
 # ---------------------------------------------------------------------------

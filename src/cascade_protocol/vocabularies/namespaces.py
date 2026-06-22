@@ -207,6 +207,26 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "consent_scope",
         "name_pred": "cascade:consentScope",
     },
+    "social-history": {
+        "rdf_type": "health:SocialHistoryRecord",
+        "name_key": "smoking_status",
+        "name_pred": "health:smokingStatus",
+    },
+    "advisory-application-activities": {
+        "rdf_type": "cascade:AdvisoryApplicationActivity",
+        "name_key": "applied_triples_count",
+        "name_pred": "cascade:appliedTriplesCount",
+    },
+    "ai-generation-activities": {
+        "rdf_type": "cascade:AIGenerationActivity",
+        "name_key": "extraction_model",
+        "name_pred": "cascade:extractionModel",
+    },
+    "proxy-agents": {
+        "rdf_type": "cascade:ProxyAgent",
+        "name_key": "proxy_web_id",
+        "name_pred": "cascade:proxyWebID",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -242,6 +262,10 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "AIExtractionActivity": "ai-extraction-activities",
     "AIDiscardedExtraction": "ai-discarded-extractions",
     "SocialHistoryConsent": "social-history-consents",
+    "SocialHistoryRecord": "social-history",
+    "AdvisoryApplicationActivity": "advisory-application-activities",
+    "AIGenerationActivity": "ai-generation-activities",
+    "ProxyAgent": "proxy-agents",
 }
 
 # ---------------------------------------------------------------------------
@@ -486,6 +510,28 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "consent_scope": "cascade:consentScope",
     "consent_granted_at": "cascade:consentGrantedAt",
     "consent_revoked_at": "cascade:consentRevokedAt",
+
+    # -- Health v2.4 -- SocialHistoryRecord predicates (consumer-reported) --
+    "smoking_status": "health:smokingStatus",
+    "alcohol_use": "health:alcoholUse",
+    "exercise_frequency": "health:exerciseFrequency",
+    "occupational_exposure": "health:occupationalExposure",
+
+    # -- Core v3.1-3.3 -- AIGenerationActivity predicates --
+    "prompt_version": "cascade:promptVersion",
+    "generation_temperature": "cascade:generationTemperature",
+    "trigger": "cascade:trigger",
+
+    # -- Core v3.1-3.3 -- AdvisoryApplicationActivity predicates --
+    "applied_triples_count": "cascade:appliedTriplesCount",
+
+    # -- Core v3.1-3.3 -- ProxyAgent predicates --
+    "acts_for_patient": "cascade:actsForPatient",
+    "proxy_web_id": "cascade:proxyWebID",
+    "proxy_relationship": "cascade:proxyRelationship",
+    "proxy_scope": "cascade:proxyScope",
+    "proxy_granted_at": "cascade:proxyGrantedAt",
+    "proxy_revoked_at": "cascade:proxyRevokedAt",
 }
 
 # Also provide camelCase -> predicate mapping for JSON input compatibility
@@ -667,6 +713,24 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "consentScope": "cascade:consentScope",
     "consentGrantedAt": "cascade:consentGrantedAt",
     "consentRevokedAt": "cascade:consentRevokedAt",
+    # -- Health v2.4 -- SocialHistoryRecord predicates (consumer-reported) --
+    "smokingStatus": "health:smokingStatus",
+    "alcoholUse": "health:alcoholUse",
+    "exerciseFrequency": "health:exerciseFrequency",
+    "occupationalExposure": "health:occupationalExposure",
+    # -- Core v3.1-3.3 -- AIGenerationActivity predicates --
+    "promptVersion": "cascade:promptVersion",
+    "generationTemperature": "cascade:generationTemperature",
+    "trigger": "cascade:trigger",
+    # -- Core v3.1-3.3 -- AdvisoryApplicationActivity predicates --
+    "appliedTriplesCount": "cascade:appliedTriplesCount",
+    # -- Core v3.1-3.3 -- ProxyAgent predicates --
+    "actsForPatient": "cascade:actsForPatient",
+    "proxyWebID": "cascade:proxyWebID",
+    "proxyRelationship": "cascade:proxyRelationship",
+    "proxyScope": "cascade:proxyScope",
+    "proxyGrantedAt": "cascade:proxyGrantedAt",
+    "proxyRevokedAt": "cascade:proxyRevokedAt",
 }
 
 
