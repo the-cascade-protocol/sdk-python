@@ -36,7 +36,9 @@ from cascade_protocol import (
     Address,
     ActivitySnapshot,
     SleepSnapshot,
+    AIGenerationActivity,
     serialize,
+    parse,
 )
 from cascade_protocol.serializer import serialize_from_dict
 
@@ -391,3 +393,30 @@ class TestPrefixOrdering:
         xsd_idx = prefix_names.index("xsd")
         assert cascade_idx < clinical_idx, "cascade prefix must come before clinical"
         assert clinical_idx < xsd_idx, "clinical prefix must come before xsd"
+
+
+class TestAIGenerationActivityTrigger:
+    """cascade:trigger is an ObjectProperty (range cascade:GenerationTrigger),
+    so it must serialize as a cascade: URI, not a string literal, and round-trip."""
+
+    def _activity(self) -> AIGenerationActivity:
+        return AIGenerationActivity(
+            id="urn:uuid:gen0-0001-aaaa-bbbb-ccccddddeeee",
+            extraction_model="gemma-3.5-4b",
+            prompt_version="v3",
+            generation_temperature=0.2,
+            trigger="InitialGeneration",
+            data_provenance="AIGenerated",
+            schema_version="3.3",
+        )
+
+    def test_trigger_serializes_as_cascade_uri(self):
+        ttl = serialize(self._activity())
+        assert "cascade:trigger cascade:InitialGeneration" in ttl
+        # Must NOT be emitted as a quoted string literal.
+        assert 'cascade:trigger "InitialGeneration"' not in ttl
+
+    def test_trigger_round_trips(self):
+        ttl = serialize(self._activity())
+        restored = parse(ttl, "AIGenerationActivity")[0]
+        assert restored.trigger == "InitialGeneration"

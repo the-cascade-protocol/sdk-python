@@ -272,6 +272,17 @@ def _parse_with_rdflib(turtle: str) -> list[dict[str, Any]]:
                     record[py_key] = obj_str
                 continue
 
+            # trigger: cascade:trigger is a GenerationTrigger object property —
+            # the value is a cascade: URI; extract the local name (mirrors the
+            # serializer, which emits cascade:<value>).
+            if py_key == "trigger":
+                obj_str = str(obj)
+                if obj_str.startswith(CASCADE_NS):
+                    record[py_key] = obj_str[len(CASCADE_NS):]
+                else:
+                    record[py_key] = obj_str
+                continue
+
             # Boolean fields
             if py_key in _BOOLEAN_FIELDS:
                 if isinstance(obj, Literal):

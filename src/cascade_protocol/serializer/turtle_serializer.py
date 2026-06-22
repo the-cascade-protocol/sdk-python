@@ -312,6 +312,13 @@ def _serialize_dict(
             triple_lines.append(f"    {pred} cascade:{value}")
             return
 
+        # trigger: cascade:trigger is an ObjectProperty whose range is the
+        # cascade:GenerationTrigger enumeration — emit the value as a cascade:
+        # prefixed URI (e.g. cascade:InitialGeneration), not a string literal.
+        if key == "trigger":
+            triple_lines.append(f"    {pred} cascade:{value}")
+            return
+
         # Boolean
         if isinstance(value, bool):
             triple_lines.append(f"    {pred} {'true' if value else 'false'}")

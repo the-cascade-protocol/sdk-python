@@ -53,10 +53,12 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "AppealRecord": ["id", "type", "appealLevel", "dataProvenance", "schemaVersion"],
     # -- health v2.4 --
     "SocialHistoryRecord": ["id", "type", "dataProvenance", "schemaVersion"],
-    # -- core v3.1-3.3 --
-    "AdvisoryApplicationActivity": ["id", "type", "dataProvenance", "schemaVersion"],
-    "AIGenerationActivity": ["id", "type", "dataProvenance", "schemaVersion"],
-    "ProxyAgent": ["id", "type", "dataProvenance", "schemaVersion"],
+    # -- core v3.1-3.3 (prov:Activity / prov:Agent classes — NOT cascade:HealthRecord
+    #    subclasses, so no dataProvenance/schemaVersion; required fields follow each
+    #    SHACL shape) --
+    "AdvisoryApplicationActivity": ["id", "type"],
+    "AIGenerationActivity": ["id", "type", "extractionModel", "trigger"],
+    "ProxyAgent": ["id", "type", "actsForPatient", "proxyRelationship", "proxyGrantedAt"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -83,10 +85,12 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "AppealRecord": ["id", "type", "appeal_level", "data_provenance", "schema_version"],
     # -- health v2.4 --
     "SocialHistoryRecord": ["id", "type", "data_provenance", "schema_version"],
-    # -- core v3.1-3.3 --
-    "AdvisoryApplicationActivity": ["id", "type", "data_provenance", "schema_version"],
-    "AIGenerationActivity": ["id", "type", "data_provenance", "schema_version"],
-    "ProxyAgent": ["id", "type", "data_provenance", "schema_version"],
+    # -- core v3.1-3.3 (prov:Activity / prov:Agent classes — NOT cascade:HealthRecord
+    #    subclasses, so no dataProvenance/schemaVersion; required fields follow each
+    #    SHACL shape) --
+    "AdvisoryApplicationActivity": ["id", "type"],
+    "AIGenerationActivity": ["id", "type", "extraction_model", "trigger"],
+    "ProxyAgent": ["id", "type", "acts_for_patient", "proxy_relationship", "proxy_granted_at"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
