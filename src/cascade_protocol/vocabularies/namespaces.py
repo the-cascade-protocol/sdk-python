@@ -60,6 +60,19 @@ NAMESPACES: dict[str, str] = {
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     # OWL namespace
     "owl": "http://www.w3.org/2002/07/owl#",
+    # -- Draft vocabularies (v1-draft; NOT in VOCAB_VERSIONS until v1.0
+    #    graduation, per D-PATH). Registered so their terms round-trip and the
+    #    reverse predicate map resolves; no JSON-LD context for drafts yet. --
+    # Cascade Protocol evidence vocabulary (v1-draft; grounding/assertion facets)
+    "evidence": "https://ns.cascadeprotocol.org/evidence/v1#",
+    # Cascade Protocol workbench vocabulary (v1-draft; investigation app, notes)
+    "workbench": "https://ns.cascadeprotocol.org/workbench/v1#",
+    # W3C Web Annotation namespace (notes substrate: body/target/motivation/selectors)
+    "oa": "http://www.w3.org/ns/oa#",
+    # W3C RDF Calendar (iCalendar) namespace (follow-up due date / status)
+    "ical": "http://www.w3.org/2002/12/cal/ical#",
+    # SKOS namespace (workbench:followUp is an oa:Motivation with skos:broader)
+    "skos": "http://www.w3.org/2004/02/skos/core#",
 }
 
 # ---------------------------------------------------------------------------
@@ -532,6 +545,22 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "proxy_scope": "cascade:proxyScope",
     "proxy_granted_at": "cascade:proxyGrantedAt",
     "proxy_revoked_at": "cascade:proxyRevokedAt",
+
+    # -- evidence v1-draft.0.2 (DRAFT) -- verdict-taxonomy-v2 facet predicates.
+    #    The grounding outcome as orthogonal facets on an evidence:Assertion.
+    "direction": "evidence:direction",
+    "basis": "evidence:basis",
+    "strength": "evidence:strength",
+    "settled": "evidence:settled",
+    "reason": "evidence:reason",
+    "confidence": "evidence:confidence",
+
+    # -- workbench v1-draft.0.4 (DRAFT) -- user filing label (organization axis).
+    "user_source_label": "workbench:userSourceLabel",
+    # Note: workbench:followUp is an oa:Motivation individual (a VALUE of
+    # oa:motivatedBy), not a predicate. Like the cascade: provenance individuals
+    # it is not registered here; the "workbench" namespace above lets it
+    # round-trip as a prefixed value.
 }
 
 # Also provide camelCase -> predicate mapping for JSON input compatibility
@@ -731,6 +760,16 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "proxyScope": "cascade:proxyScope",
     "proxyGrantedAt": "cascade:proxyGrantedAt",
     "proxyRevokedAt": "cascade:proxyRevokedAt",
+    # -- evidence v1-draft.0.2 (DRAFT) -- verdict-taxonomy-v2 facet predicates --
+    "direction": "evidence:direction",
+    "basis": "evidence:basis",
+    "strength": "evidence:strength",
+    "settled": "evidence:settled",
+    "reason": "evidence:reason",
+    "confidence": "evidence:confidence",
+    # -- workbench v1-draft.0.4 (DRAFT) -- user filing label. followUp is an
+    #    oa:Motivation individual, not a predicate (see the snake_case block). --
+    "userSourceLabel": "workbench:userSourceLabel",
 }
 
 
