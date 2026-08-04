@@ -234,8 +234,18 @@ def test_top_level_hello_vector():
 # Conformance fixtures (REC-1)
 # ---------------------------------------------------------------------------
 
-_FIXTURES_PATH = Path("/Users/jedr/Documents/Development/conformance/fixtures/deterministic-ids/test-vectors.json")
-_FIXTURES = json.loads(_FIXTURES_PATH.read_text())
+# Resolved relative to this file, matching the layout test_conformance.py
+# assumes: sdk-python/tests/ -> sdk-python/ -> <sibling>/conformance/fixtures/
+_FIXTURES_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "conformance" / "fixtures" / "deterministic-ids" / "test-vectors.json"
+)
+
+_FIXTURES: dict = (
+    json.loads(_FIXTURES_PATH.read_text(encoding="utf-8"))
+    if _FIXTURES_PATH.exists()
+    else {"primitiveVectors": [], "contentHashedUriVectors": []}
+)
 
 _PRIMITIVE_VECTORS = [
     (v["label"], v["input"], v["expectedUuid"])
@@ -246,6 +256,21 @@ _CONTENT_HASHED_URI_VECTORS = [
     (v["label"], v["identityString"], v["expectedUri"])
     for v in _FIXTURES["contentHashedUriVectors"]
 ]
+
+
+def test_conformance_vectors_are_loaded():
+    """
+    An empty vector file makes every parametrized test below expand to zero
+    cases, which pytest reports as a clean run. This asserts the vectors were
+    actually found, so a missing fixture file is a visible failure rather than
+    a silently empty cross-SDK conformance check.
+    """
+    assert _FIXTURES_PATH.exists(), (
+        f"Cross-SDK determinism vectors not found at {_FIXTURES_PATH}. "
+        f"This test expects the conformance repo checked out alongside this one."
+    )
+    assert _PRIMITIVE_VECTORS, "no primitive vectors loaded"
+    assert _CONTENT_HASHED_URI_VECTORS, "no contentHashedURI vectors loaded"
 
 
 @pytest.mark.parametrize("label,input_str,expected_uuid", _PRIMITIVE_VECTORS)

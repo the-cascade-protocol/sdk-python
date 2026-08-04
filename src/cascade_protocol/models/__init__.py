@@ -42,7 +42,27 @@ from cascade_protocol.models.implanted_device import ImplantedDevice
 from cascade_protocol.models.imaging_study import ImagingStudy
 from cascade_protocol.models.claim_record import ClaimRecord, BenefitStatement, DenialNotice, AppealRecord
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
-from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
+from cascade_protocol.models.wellness import (
+    ActivitySnapshot,
+    SleepSnapshot,
+    DailyActivitySnapshot,
+    DailySleepSnapshot,
+    DailyVitalReading,
+    WellnessContainer,
+    ActivityData,
+    SleepData,
+    HeartRateData,
+    BloodPressureData,
+    HRVData,
+    BodyMeasurements,
+    SleepQuality,
+)
+from cascade_protocol.models.export_manifest import (
+    ExportManifest,
+    RecordSummary,
+    InteractionScenario,
+    DeviceSource,
+)
 from cascade_protocol.models.health_profile import HealthProfile
 from cascade_protocol.models.social_history_clinical import ClinicalSocialHistoryRecord
 from cascade_protocol.models.social_history import SocialHistoryRecord
@@ -103,6 +123,23 @@ __all__ = [
     "ActivitySnapshot",
     "SleepSnapshot",
     "HealthProfile",
+    # Wellness daily entries and containers (health v2.5)
+    "DailyActivitySnapshot",
+    "DailySleepSnapshot",
+    "DailyVitalReading",
+    "WellnessContainer",
+    "ActivityData",
+    "SleepData",
+    "HeartRateData",
+    "BloodPressureData",
+    "HRVData",
+    "BodyMeasurements",
+    "SleepQuality",
+    # Pod export manifest (core v3.4)
+    "ExportManifest",
+    "RecordSummary",
+    "InteractionScenario",
+    "DeviceSource",
     # Clinical social history (EHR-extracted, clinical v1.8)
     "ClinicalSocialHistoryRecord",
     # Consumer-reported social history (health v2.4)

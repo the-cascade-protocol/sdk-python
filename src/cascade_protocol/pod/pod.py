@@ -46,6 +46,8 @@ from cascade_protocol.vocabularies.namespaces import TYPE_TO_MAPPING_KEY, TYPE_M
 
 if TYPE_CHECKING:
     import pandas as pd
+    from cascade_protocol.models.export_manifest import ExportManifest
+    from cascade_protocol.models.wellness import WellnessContainer
 
 # ---------------------------------------------------------------------------
 # Mapping from query key to (directory, filename, record_type)
@@ -119,7 +121,42 @@ _QUERY_MAP: dict[str, dict[str, Any]] = {
         "paths": ["wellness/blood-pressure.ttl"],
         "record_type": "VitalSign",
     },
+    # -- health v2.5 -- the single-day entries a wellness history container
+    #    actually holds. The "activity" / "sleep" keys above look for the
+    #    7-day aggregate health:ActivitySnapshot / health:SleepSnapshot, which
+    #    is a different class; a pod written with daily entries returns nothing
+    #    for them. Both are kept because both classes are emitted.
+    "daily-activity": {
+        "paths": ["wellness/activity.ttl"],
+        "record_type": "DailyActivitySnapshot",
+    },
+    "daily-sleep": {
+        "paths": ["wellness/sleep.ttl"],
+        "record_type": "DailySleepSnapshot",
+    },
+    "daily-vitals": {
+        "paths": [
+            "wellness/heart-rate.ttl",
+            "wellness/blood-pressure.ttl",
+            "wellness/hrv.ttl",
+            "wellness/body-measurements.ttl",
+        ],
+        "record_type": "DailyVitalReading",
+    },
 }
+
+# Wellness container files, for the ordered-history reader.
+_CONTAINER_MAP: dict[str, dict[str, Any]] = {
+    "ActivityData": {"paths": ["wellness/activity.ttl"]},
+    "SleepData": {"paths": ["wellness/sleep.ttl"]},
+    "HeartRateData": {"paths": ["wellness/heart-rate.ttl"]},
+    "BloodPressureData": {"paths": ["wellness/blood-pressure.ttl"]},
+    "HRVData": {"paths": ["wellness/hrv.ttl"]},
+    "BodyMeasurements": {"paths": ["wellness/body-measurements.ttl"]},
+}
+
+# Pod-relative location of the export manifest.
+_MANIFEST_PATH = "manifest.ttl"
 
 # Aliases
 _QUERY_ALIASES: dict[str, str] = {
@@ -305,6 +342,66 @@ class Pod:
                 )
 
         return RecordSet(all_records, query_key)
+
+    def manifest(self) -> "ExportManifest | None":
+        """
+        Read the pod's export manifest (``manifest.ttl``).
+
+        The manifest carries when the export was generated, which schema
+        versions it uses, how many records of each kind it contains, and which
+        provenance layers are represented. A consumer should read it before
+        processing individual resources: it is the only place that says, up
+        front, whether the export holds EHR data, device data, self-reported
+        data, or a mixture.
+
+        Returns:
+            The parsed :class:`ExportManifest`, or ``None`` if the pod has no
+            ``manifest.ttl`` or the file declares no manifest subject.
+        """
+        from cascade_protocol.deserializer.turtle_parser import parse_export_manifest
+
+        path = self._path / _MANIFEST_PATH
+        if not path.exists():
+            return None
+        return parse_export_manifest(path.read_text(encoding="utf-8"))
+
+    def containers(self, container_type: str) -> list["WellnessContainer"]:
+        """
+        Read wellness containers of the given type, with history entries in
+        the order the file carries them.
+
+        Use this rather than :meth:`query` when order matters: the history
+        properties are rdf:Lists holding a time series, and :meth:`query`
+        returns entries in triple-store order, not document order.
+
+        Args:
+            container_type: One of ``"ActivityData"``, ``"SleepData"``,
+                ``"HeartRateData"``, ``"BloodPressureData"``, ``"HRVData"``,
+                ``"BodyMeasurements"``.
+
+        Returns:
+            A list of container objects.
+
+        Raises:
+            ValueError: If the container type is not recognized.
+        """
+        from cascade_protocol.deserializer.turtle_parser import parse_wellness_container
+
+        spec = _CONTAINER_MAP.get(container_type)
+        if spec is None:
+            raise ValueError(
+                f"Unknown container type: {container_type!r}. "
+                f"Valid types: {sorted(_CONTAINER_MAP)}"
+            )
+
+        result: list["WellnessContainer"] = []
+        for rel_path in spec["paths"]:
+            ttl_file = self._path / rel_path
+            if not ttl_file.exists():
+                continue
+            turtle = ttl_file.read_text(encoding="utf-8")
+            result.extend(parse_wellness_container(turtle, container_type))
+        return result
 
     def query_file(self, file_path: str | Path, record_type: str) -> RecordSet:
         """

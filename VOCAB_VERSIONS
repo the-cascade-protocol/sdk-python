@@ -2,9 +2,9 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.3
-health=2.4
-clinical=1.9
+core=3.4
+health=2.5
+clinical=1.13
 coverage=1.3
 # coverage=1.3: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
 # core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
@@ -25,3 +25,43 @@ pots=1.4
 #   - workbench@v1-draft.0.5 notes substrate: external namespaces oa, ical, skos
 #     registered so oa:Annotation notes (incl. the workbench:followUp motivation
 #     individual) round-trip. No JSON-LD context for drafts yet.
+#
+# core=3.4: pod export manifest. All 32 terms core v3.4 defines are registered.
+#     ExportManifest / RecordSummary / InteractionScenario / DeviceSource
+#     dataclasses added, with serialize_export_manifest(), parse_export_manifest()
+#     and Pod.manifest(). ExportManifest is modelled on dcat:Dataset, so its
+#     descriptive fields map to dcterms:, not to Cascade-specific inventions.
+#     RecordSummary is modelled on void:Dataset: RECORD_SUMMARY_COUNT_CLASSES
+#     pairs each entity count with the void:class it counts, and
+#     RECORD_SUMMARY_DAY_COUNTS keeps the five day counts out of that set
+#     because they count days covered, not entities. Reading-level cascade:date,
+#     cascade:sampleCount and cascade:loincCode registered on the history-entry
+#     types. The dcat / void namespaces are registered as URI constants only —
+#     the SDK does no RDFS/OWL inference over the superclass axioms.
+# health=2.5: DailyActivitySnapshot, DailySleepSnapshot and DailyVitalReading
+#     dataclasses (the single-day history entries, distinct from the 7-day
+#     ActivitySnapshot / SleepSnapshot aggregates), the five daily-snapshot
+#     properties, and the four sleepQuality named individuals, which are read
+#     and written as health: IRIs rather than string literals. Six wellness
+#     container classes added with parse_wellness_container() / Pod.containers(),
+#     which preserve rdf:List entry order. The five clinical record classes and
+#     35 of the 40 v2.5 properties were already supported; those are covered by
+#     tests here but were not newly implemented.
+#     health:BloodPressureReading and health:HRVReading are NOT modelled, so
+#     BloodPressureData and HRVData containers currently read with an empty
+#     history.
+# clinical=1.13: four vocabulary versions.
+#     v1.10-v1.12 — clinical:hasEncounter, clinical:indicationReference,
+#     clinical:parsedIndicationReference and clinical:linkedCondition added as
+#     traversable IRI edges on the relevant models; the deprecated
+#     clinical:linkedConditionIds literal is registered for READ ONLY so
+#     existing data is not dropped, and is never written.
+#     v1.13 — clinical:LabResult, clinical:Condition, clinical:Allergy and
+#     clinical:Immunization are deprecated, not removed. The deserializer
+#     accepts both spellings (DEPRECATED_TYPE_ALIASES); the serializer emits
+#     only the health: forms. Also enforces the clinical v1.8
+#     socialHistoryCategory value set, which VOCAB_VERSIONS claimed at v1.9 but
+#     the validator did not check.
+#     clinical:hasLabResult's v1.10 range correction needs no change here: this
+#     SDK has no clinical:LaboratoryReport model, so the edge is unimplemented
+#     rather than wrong.

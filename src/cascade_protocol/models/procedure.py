@@ -65,6 +65,39 @@ class Procedure(CascadeRecord):
     Maps to ``health:location`` in Turtle serialization.
     """
 
+
+    has_encounter: str | None = None
+    """
+    IRI of the ``clinical:Encounter`` (visit context) this record occurred
+    within. Maps to ``clinical:hasEncounter`` (clinical v1.10).
+
+    FHIR alignment: the ``.encounter`` Reference(Encounter) element.
+    """
+
+    indication_reference: list[str] | None = None
+    """
+    IRIs of the conditions that are the clinical reason for this record: the
+    traversable edge alongside the free-text ``clinical:indication`` and
+    ``clinical:reasonForUse`` literals, which are retained.
+    Maps to ``clinical:indicationReference`` (clinical v1.10, domain widened
+    in v1.11 because FHIR carries reasonReference on Procedure and other event
+    resources, not only medications).
+    """
+
+    parsed_indication_reference: list[str] | None = None
+    """
+    IRIs of conditions an importer DERIVED by parsing a coded or free-text
+    reason on this record and matching it to a condition in the same pod.
+    Maps to ``clinical:parsedIndicationReference`` (clinical v1.12), a
+    subproperty of ``clinical:indicationReference``.
+
+    Present these differently from ``indication_reference``: that one restates
+    a reference the SOURCE carried, this one records a match that was
+    computed, and a parsed match is only as good as the code or wording it
+    matched on. It carries no confidence score by design: it is a
+    deterministic parse of what the record already says, not an inference.
+    """
+
     @classmethod
     def from_dataframe(cls, df: "pd.DataFrame") -> list["Procedure"]:  # type: ignore[name-defined]
         """Reconstruct a list of Procedure records from a pandas DataFrame."""

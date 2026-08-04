@@ -54,6 +54,16 @@ NAMESPACES: dict[str, str] = {
     "ldp": "http://www.w3.org/ns/ldp#",
     # Dublin Core Terms namespace
     "dcterms": "http://purl.org/dc/terms/",
+    # W3C DCAT 3 namespace. cascade:ExportManifest is rdfs:subClassOf
+    # dcat:Dataset (core v3.4): a pod export is a published dataset with a
+    # title, description, creation date and publisher, which DCAT already
+    # standardises. Registered so a DCAT-aware consumer can resolve the
+    # superclass; the SDK emits the dcterms: descriptive terms, not dcat: ones.
+    "dcat": "http://www.w3.org/ns/dcat#",
+    # W3C VoID namespace. cascade:RecordSummary is rdfs:subClassOf void:Dataset
+    # and its entity-count properties are rdfs:subPropertyOf void:entities
+    # (core v3.4). See RECORD_SUMMARY_COUNT_CLASSES below for the pairing.
+    "void": "http://rdfs.org/ns/void#",
     # RDF namespace (used internally, not typically declared in output)
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     # RDFS namespace
@@ -240,7 +250,132 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "proxy_web_id",
         "name_pred": "cascade:proxyWebID",
     },
+    # -- health v2.5 -- single-day entries inside the wellness history
+    #    containers. Distinct from the 7-day aggregate health:ActivitySnapshot /
+    #    health:SleepSnapshot above; the vocabulary keeps the two apart and so
+    #    does this SDK.
+    "daily-activity": {
+        "rdf_type": "health:DailyActivitySnapshot",
+        "name_key": "date",
+        "name_pred": "cascade:date",
+    },
+    "daily-sleep": {
+        "rdf_type": "health:DailySleepSnapshot",
+        "name_key": "date",
+        "name_pred": "cascade:date",
+    },
+    "daily-vitals": {
+        "rdf_type": "health:DailyVitalReading",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    # -- health v2.5 -- wellness container classes. Each is
+    #    rdfs:subClassOf health:HealthProfile and carries one family of
+    #    history containers.
+    "activity-data": {
+        "rdf_type": "health:ActivityData",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    "sleep-data": {
+        "rdf_type": "health:SleepData",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    "heart-rate-data": {
+        "rdf_type": "health:HeartRateData",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    "blood-pressure-data": {
+        "rdf_type": "health:BloodPressureData",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    "hrv-data": {
+        "rdf_type": "health:HRVData",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    "body-measurements": {
+        "rdf_type": "health:BodyMeasurements",
+        "name_key": "date",
+        "name_pred": "health:date",
+    },
+    # -- core v3.4 -- pod export manifest --
+    "export-manifest": {
+        "rdf_type": "cascade:ExportManifest",
+        "name_key": "title",
+        "name_pred": "dcterms:title",
+    },
+    "record-summary": {
+        "rdf_type": "cascade:RecordSummary",
+        "name_key": "domain",
+        "name_pred": "cascade:domain",
+    },
+    "interaction-scenario": {
+        "rdf_type": "cascade:InteractionScenario",
+        "name_key": "title",
+        "name_pred": "dcterms:title",
+    },
 }
+
+# ---------------------------------------------------------------------------
+# Deprecated rdf:type spellings (clinical v1.13)
+# ---------------------------------------------------------------------------
+
+# Four clinical: classes were deprecated in clinical v1.13 (owl:deprecated true
+# with rdfs:seeAlso pointing at the health: class listed here). They were NOT
+# removed: the pod export path is still their sole emitter and existing pods
+# contain them.
+#
+# The asymmetry this map encodes, deliberately:
+#   READERS accept both spellings. Dropping the deprecated types would silently
+#          lose every record in an already-written pod.
+#   WRITERS emit only the health: forms. Nothing in this SDK serializes a
+#          clinical: spelling for these four classes.
+DEPRECATED_TYPE_ALIASES: dict[str, str] = {
+    "clinical:LabResult": "health:LabResultRecord",
+    "clinical:Condition": "health:ConditionRecord",
+    "clinical:Allergy": "health:AllergyRecord",
+    "clinical:Immunization": "health:ImmunizationRecord",
+}
+
+# ---------------------------------------------------------------------------
+# Record summary counts and their VoID pairing (core v3.4)
+# ---------------------------------------------------------------------------
+
+# cascade:RecordSummary is rdfs:subClassOf void:Dataset. Each entity-count
+# property below is rdfs:subPropertyOf void:entities, and all but
+# cascade:coverageCount name the void:class they count, so a VoID-aware
+# consumer can read Cascade record counts with no Cascade-specific code.
+RECORD_SUMMARY_COUNT_CLASSES: dict[str, str] = {
+    "cascade:conditionCount": "https://ns.cascadeprotocol.org/health/v1#ConditionRecord",
+    "cascade:medicationCount": "https://ns.cascadeprotocol.org/clinical/v1#Medication",
+    "cascade:allergyCount": "https://ns.cascadeprotocol.org/health/v1#AllergyRecord",
+    "cascade:labResultCount": "https://ns.cascadeprotocol.org/health/v1#LabResultRecord",
+    "cascade:immunizationCount": "https://ns.cascadeprotocol.org/health/v1#ImmunizationRecord",
+    "cascade:supplementCount": "https://ns.cascadeprotocol.org/clinical/v1#Supplement",
+}
+
+# Entity counts: subproperties of void:entities. cascade:coverageCount is one
+# of these but names no void:class in the ontology, so it is listed here and
+# absent from RECORD_SUMMARY_COUNT_CLASSES.
+RECORD_SUMMARY_ENTITY_COUNTS: frozenset[str] = frozenset(
+    set(RECORD_SUMMARY_COUNT_CLASSES) | {"cascade:coverageCount"}
+)
+
+# Day counts. These count DAYS COVERED, not entities, and are deliberately NOT
+# subproperties of void:entities: a 30-day heart rate history holds far more
+# than 30 readings. Treating them as entity counts would make the VoID reading
+# of a pod wrong.
+RECORD_SUMMARY_DAY_COUNTS: frozenset[str] = frozenset({
+    "cascade:vitalSignDays",
+    "cascade:heartRateDays",
+    "cascade:bloodPressureDays",
+    "cascade:activityDays",
+    "cascade:sleepDays",
+})
 
 # ---------------------------------------------------------------------------
 # Record Type to Mapping Key
@@ -279,6 +414,47 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "AdvisoryApplicationActivity": "advisory-application-activities",
     "AIGenerationActivity": "ai-generation-activities",
     "ProxyAgent": "proxy-agents",
+    # -- health v2.5 --
+    "DailyActivitySnapshot": "daily-activity",
+    "DailySleepSnapshot": "daily-sleep",
+    "DailyVitalReading": "daily-vitals",
+    "ActivityData": "activity-data",
+    "SleepData": "sleep-data",
+    "HeartRateData": "heart-rate-data",
+    "BloodPressureData": "blood-pressure-data",
+    "HRVData": "hrv-data",
+    "BodyMeasurements": "body-measurements",
+    # -- core v3.4 --
+    "ExportManifest": "export-manifest",
+    "RecordSummary": "record-summary",
+    "InteractionScenario": "interaction-scenario",
+}
+
+# ---------------------------------------------------------------------------
+# Wellness history containers (health v2.5)
+# ---------------------------------------------------------------------------
+
+# Each wellness container class carries one or more ordered history
+# properties. The value is an rdf:List, so entry ORDER is part of the data:
+# these are time series, and reading them into an unordered collection loses
+# information that is in the file.
+#
+# The second element of each pair is the entry class the ontology declares as
+# the property's rdfs:range. health:BloodPressureReading and health:HRVReading
+# are NOT modelled in this SDK yet, so those two containers read with an empty
+# history until they are; the reader resolves whatever registered record type
+# an entry carries rather than assuming the declared range, so adding those
+# classes later needs no change here.
+WELLNESS_HISTORY_PROPERTIES: dict[str, list[tuple[str, str]]] = {
+    "ActivityData": [("health:dailyActivityHistory", "DailyActivitySnapshot")],
+    "SleepData": [("health:dailySleepHistory", "DailySleepSnapshot")],
+    "HeartRateData": [
+        ("health:restingHeartRateHistory", "DailyVitalReading"),
+        ("health:walkingHeartRateHistory", "DailyVitalReading"),
+    ],
+    "BloodPressureData": [("health:bloodPressureHistory", "BloodPressureReading")],
+    "HRVData": [("health:hrvHistory", "HRVReading")],
+    "BodyMeasurements": [("health:bodyMassHistory", "DailyVitalReading")],
 }
 
 # ---------------------------------------------------------------------------
@@ -561,6 +737,81 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # oa:motivatedBy), not a predicate. Like the cascade: provenance individuals
     # it is not registered here; the "workbench" namespace above lets it
     # round-trip as a prefixed value.
+
+    # -- Health v2.5 -- daily snapshot predicates. These are the SINGLE-DAY
+    #    forms. health:activeEnergyBurnedKcal / exerciseMinutesWeekly /
+    #    standHoursDaily are the 7-day aggregate forms on
+    #    health:ActivitySnapshot; the two sets are distinct and both are
+    #    emitted, so they are registered separately.
+    "active_energy_kcal": "health:activeEnergyKcal",
+    "exercise_minutes": "health:exerciseMinutes",
+    "stand_hours": "health:standHours",
+    "duration_hours": "health:durationHours",
+    # health:sleepQuality takes an IRI object (health:Good), not a string
+    # literal — see the serializer's sleep-quality handling.
+    "sleep_quality": "health:sleepQuality",
+    # -- Core v3.4 -- reading-level terms emitted on history-container entries.
+    #    cascade:sampleCount says how many underlying samples an aggregated
+    #    reading came from; a resting heart rate derived from 142 samples is a
+    #    stronger observation than one derived from 2.
+    "sample_count": "cascade:sampleCount",
+
+    # -- Core v3.4 -- pod export manifest.
+    #    cascade:ExportManifest is rdfs:subClassOf dcat:Dataset, so the
+    #    descriptive terms are the DCAT-standard dcterms: ones rather than
+    #    Cascade-specific inventions.
+    "title": "dcterms:title",
+    "description": "dcterms:description",
+    "created": "dcterms:created",
+    "creator": "dcterms:creator",
+    "patient_profile_version": "cascade:patientProfileVersion",
+    "provenance_layers": "cascade:provenanceLayers",
+    "clinical_summary": "cascade:clinicalSummary",
+    "wellness_summary": "cascade:wellnessSummary",
+    "device_sources": "cascade:deviceSources",
+    "interaction_scenarios": "cascade:interactionScenarios",
+    # -- Core v3.4 -- record summary (rdfs:subClassOf void:Dataset) --
+    "domain": "cascade:domain",
+    "condition_count": "cascade:conditionCount",
+    "medication_count": "cascade:medicationCount",
+    "allergy_count": "cascade:allergyCount",
+    "lab_result_count": "cascade:labResultCount",
+    "immunization_count": "cascade:immunizationCount",
+    "coverage_count": "cascade:coverageCount",
+    "supplement_count": "cascade:supplementCount",
+    "vital_sign_days": "cascade:vitalSignDays",
+    "heart_rate_days": "cascade:heartRateDays",
+    "blood_pressure_days": "cascade:bloodPressureDays",
+    "activity_days": "cascade:activityDays",
+    "sleep_days": "cascade:sleepDays",
+    # -- Core v3.4 -- interaction scenario (deliberately novel: no ratified
+    #    vocabulary models cross-provenance correlation as a first-class thing)
+    "involved_resources": "cascade:involvedResources",
+    "severity": "cascade:severity",
+    "requires_cross_provenance": "cascade:requiresCrossProvenance",
+    # -- Core v3.4 -- device sources. cascade:sourceType describes the
+    #    TRANSPORT a reading arrived through, never its trustworthiness;
+    #    trustworthiness is cascade:dataProvenance.
+    "source_type": "cascade:sourceType",
+    "data_types": "cascade:dataTypes",
+    "version": "cascade:version",
+    "label": "prov:label",
+
+    # -- Clinical v1.10-1.12 -- traversable graph edges --
+    "has_encounter": "clinical:hasEncounter",
+    "indication_reference": "clinical:indicationReference",
+    # v1.12: a subproperty of indicationReference. The predicate is the
+    # machine-readable basis: indicationReference restates a reference the
+    # SOURCE carried; parsedIndicationReference records a match an importer
+    # computed from a coded or free-text reason. Consumers must present them
+    # differently.
+    "parsed_indication_reference": "clinical:parsedIndicationReference",
+    "linked_condition": "clinical:linkedCondition",
+    # DEPRECATED in clinical v1.10 (owl:deprecated true). Space-separated UUIDs
+    # in a single literal, which no graph query can traverse. Registered for
+    # READ support only, so existing data carrying it is not silently dropped;
+    # writers should use linked_condition.
+    "linked_condition_ids": "clinical:linkedConditionIds",
 }
 
 # Also provide camelCase -> predicate mapping for JSON input compatibility
@@ -770,6 +1021,55 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     # -- workbench v1-draft.0.4 (DRAFT) -- user filing label. followUp is an
     #    oa:Motivation individual, not a predicate (see the snake_case block). --
     "userSourceLabel": "workbench:userSourceLabel",
+    # -- Health v2.5 -- daily snapshot predicates (single-day forms) --
+    "activeEnergyKcal": "health:activeEnergyKcal",
+    "exerciseMinutes": "health:exerciseMinutes",
+    "standHours": "health:standHours",
+    "durationHours": "health:durationHours",
+    "sleepQuality": "health:sleepQuality",
+    # -- Core v3.4 -- reading-level terms --
+    "sampleCount": "cascade:sampleCount",
+    # -- Core v3.4 -- pod export manifest --
+    "title": "dcterms:title",
+    "description": "dcterms:description",
+    "created": "dcterms:created",
+    "creator": "dcterms:creator",
+    "patientProfileVersion": "cascade:patientProfileVersion",
+    "provenanceLayers": "cascade:provenanceLayers",
+    "clinicalSummary": "cascade:clinicalSummary",
+    "wellnessSummary": "cascade:wellnessSummary",
+    "deviceSources": "cascade:deviceSources",
+    "interactionScenarios": "cascade:interactionScenarios",
+    # -- Core v3.4 -- record summary --
+    "domain": "cascade:domain",
+    "conditionCount": "cascade:conditionCount",
+    "medicationCount": "cascade:medicationCount",
+    "allergyCount": "cascade:allergyCount",
+    "labResultCount": "cascade:labResultCount",
+    "immunizationCount": "cascade:immunizationCount",
+    "coverageCount": "cascade:coverageCount",
+    "supplementCount": "cascade:supplementCount",
+    "vitalSignDays": "cascade:vitalSignDays",
+    "heartRateDays": "cascade:heartRateDays",
+    "bloodPressureDays": "cascade:bloodPressureDays",
+    "activityDays": "cascade:activityDays",
+    "sleepDays": "cascade:sleepDays",
+    # -- Core v3.4 -- interaction scenario --
+    "involvedResources": "cascade:involvedResources",
+    "severity": "cascade:severity",
+    "requiresCrossProvenance": "cascade:requiresCrossProvenance",
+    # -- Core v3.4 -- device sources --
+    "sourceType": "cascade:sourceType",
+    "dataTypes": "cascade:dataTypes",
+    "version": "cascade:version",
+    "label": "prov:label",
+    # -- Clinical v1.10-1.12 -- traversable graph edges --
+    "hasEncounter": "clinical:hasEncounter",
+    "indicationReference": "clinical:indicationReference",
+    "parsedIndicationReference": "clinical:parsedIndicationReference",
+    "linkedCondition": "clinical:linkedCondition",
+    # DEPRECATED (clinical v1.10). Read support only.
+    "linkedConditionIds": "clinical:linkedConditionIds",
 }
 
 

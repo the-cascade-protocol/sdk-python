@@ -36,7 +36,19 @@ from cascade_protocol.models.procedure import Procedure
 from cascade_protocol.models.family_history import FamilyHistory
 from cascade_protocol.models.coverage import Coverage
 from cascade_protocol.models.patient_profile import PatientProfile, EmergencyContact, Address, PharmacyInfo
-from cascade_protocol.models.wellness import ActivitySnapshot, SleepSnapshot
+from cascade_protocol.models.wellness import (
+    ActivitySnapshot,
+    SleepSnapshot,
+    DailyActivitySnapshot,
+    DailySleepSnapshot,
+    DailyVitalReading,
+)
+from cascade_protocol.models.export_manifest import (
+    ExportManifest,
+    RecordSummary,
+    InteractionScenario,
+    DeviceSource,
+)
 from cascade_protocol.vocabularies.namespaces import (
     NAMESPACES,
     TYPE_MAPPING,
@@ -61,6 +73,33 @@ _TYPE_PREDICATE_OVERRIDES: dict[str, dict[str, str]] = {
         "snomedCode": "clinical:snomedCode",
         "interpretation": "clinical:interpretation",
     },
+    # -- health v2.5 daily entries --------------------------------------------
+    # The daily snapshots carry their timestamp on cascade:date, not the
+    # health:date the aggregate snapshots use. Both spellings are live; the
+    # entry type decides which one is written.
+    "DailyActivitySnapshot": {"date": "cascade:date"},
+    "_camel_DailyActivitySnapshot": {"date": "cascade:date"},
+    "DailySleepSnapshot": {"date": "cascade:date"},
+    "_camel_DailySleepSnapshot": {"date": "cascade:date"},
+    # DailyVitalReading writes health:date / health:value / health:unit (the
+    # spelling health:DailyVitalReadingShape accepts through its sh:or), with
+    # the reading-level cascade: terms for sample count and LOINC reference.
+    "DailyVitalReading": {
+        "date": "health:date",
+        "value": "health:value",
+        "unit": "health:unit",
+        "loinc_code": "cascade:loincCode",
+    },
+    "_camel_DailyVitalReading": {
+        "date": "health:date",
+        "value": "health:value",
+        "unit": "health:unit",
+        "loincCode": "cascade:loincCode",
+    },
+    # -- core v3.4 record summary ---------------------------------------------
+    # cascade:notes, not health:notes: the manifest spelling is the core one.
+    "RecordSummary": {"notes": "cascade:notes"},
+    "_camel_RecordSummary": {"notes": "cascade:notes"},
 }
 
 # Fields whose values should be serialized as URI references (angle-bracket enclosed)
@@ -71,6 +110,8 @@ _URI_FIELDS_SNAKE: set[str] = {
     "snomed_code",
     "loinc_code",
     "test_code",
+    # clinical v1.10: the record-to-encounter edge is an IRI reference.
+    "has_encounter",
 }
 
 _URI_FIELDS_CAMEL: set[str] = {
@@ -79,6 +120,7 @@ _URI_FIELDS_CAMEL: set[str] = {
     "snomedCode",
     "loincCode",
     "testCode",
+    "hasEncounter",
 }
 
 # Fields whose values are arrays and should be serialized as repeated predicates
@@ -87,12 +129,19 @@ _ARRAY_FIELDS_SNAKE: set[str] = {
     "drug_codes",
     "affects_vital_signs",
     "monitored_vital_signs",
+    # clinical v1.10-1.12 graph edges: repeated IRI objects, not RDF lists.
+    "indication_reference",
+    "parsed_indication_reference",
+    "linked_condition",
 }
 
 _ARRAY_FIELDS_CAMEL: set[str] = {
     "drugCodes",
     "affectsVitalSigns",
     "monitoredVitalSigns",
+    "indicationReference",
+    "parsedIndicationReference",
+    "linkedCondition",
 }
 
 # Fields that are date-only typed (xsd:date).
@@ -103,18 +152,34 @@ _DATE_ONLY_FIELDS_CAMEL: set[str] = {"dateOfBirth"}
 _NO_DATATYPE_DATE_FIELDS_SNAKE: set[str] = {"date"}
 _NO_DATATYPE_DATE_FIELDS_CAMEL: set[str] = {"date"}
 
+# Per-type escapes from the rule above. The 7-day aggregate snapshots carry a
+# plain ISO date string, but the health v2.5 single-day entries carry a full
+# xsd:dateTime that their shapes assert (sh:datatype xsd:dateTime on
+# cascade:date / health:date). Same field name, different classes, different
+# datatype — so the exception is keyed on the record type.
+_TYPE_DATETIME_FIELDS: dict[str, set[str]] = {
+    "DailyActivitySnapshot": {"date"},
+    "DailySleepSnapshot": {"date"},
+    "DailyVitalReading": {"date"},
+}
+
 # Fields that are dateTime typed (xsd:dateTime).
 _EXPLICIT_DATETIME_FIELDS_SNAKE: set[str] = {
     "effective_period_start",
     "effective_period_end",
     "effective_start",
     "effective_end",
+    # core v3.4: dcterms:created on an export manifest is xsd:dateTime
+    # (cascade:ExportManifestShape asserts it). The name contains neither
+    # "date" nor "time", so the heuristic would miss it.
+    "created",
 }
 _EXPLICIT_DATETIME_FIELDS_CAMEL: set[str] = {
     "effectivePeriodStart",
     "effectivePeriodEnd",
     "effectiveStart",
     "effectiveEnd",
+    "created",
 }
 
 # Fields that are typed as xsd:integer (not just plain numeric).
@@ -132,6 +197,28 @@ _INTEGER_TYPED_FIELDS_CAMEL: set[str] = {
     "onsetAge",
     "appliedTriplesCount",
 }
+
+# Fields whose SHACL shape asserts sh:datatype xsd:decimal. These MUST be
+# written with an explicit ^^xsd:decimal: a whole-numbered float would
+# otherwise emit as a bare Turtle integer, which is xsd:integer and violates
+# the shape. health:DailyActivitySnapshotShape and DailySleepSnapshotShape
+# both assert xsd:decimal on these.
+_DECIMAL_TYPED_FIELDS_SNAKE: set[str] = {
+    "active_energy_kcal",
+    "duration_hours",
+}
+_DECIMAL_TYPED_FIELDS_CAMEL: set[str] = {
+    "activeEnergyKcal",
+    "durationHours",
+}
+
+# Fields whose value is a bare local name that must be emitted as an IRI in
+# the health: namespace. health:sleepQuality is written ``health:Good`` by
+# every known emitter and parsed as such by every known deserializer, even
+# though health.ttl still declares the property xsd:string-ranged;
+# health:DailySleepSnapshotShape asserts no sh:datatype for that reason and
+# constrains the four permitted individuals instead.
+_HEALTH_IRI_ENUM_FIELDS: set[str] = {"sleep_quality", "sleepQuality"}
 
 # Preferred prefix declaration order.
 _PREFIX_ORDER = [
@@ -160,6 +247,36 @@ def _is_date_only_field(key: str, camel: bool = False) -> bool:
     """Return True if this field should be typed as xsd:date."""
     s = _DATE_ONLY_FIELDS_CAMEL if camel else _DATE_ONLY_FIELDS_SNAKE
     return key in s
+
+
+# Code-system namespace for each coded URI field. Cascade emitters normally
+# write the full IRI, but a bare code is also carried (health v2.5 daily
+# readings do it for cascade:loincCode), and emitting <8867-4> would produce a
+# relative IRI that resolves against the document base — a different resource
+# on every host. Expanding against the field's own code system is the only
+# reading that is stable.
+_CODE_SYSTEM_FOR_FIELD: dict[str, str] = {
+    "loinc_code": "loinc",
+    "loincCode": "loinc",
+    "test_code": "loinc",
+    "testCode": "loinc",
+    "snomed_code": "sct",
+    "snomedCode": "sct",
+    "icd10_code": "icd10",
+    "icd10Code": "icd10",
+    "rx_norm_code": "rxnorm",
+    "rxNormCode": "rxnorm",
+}
+
+
+def _expand_code_uri(key: str, value: str) -> str:
+    """Expand a bare code to a full IRI using the field's code system."""
+    if value.startswith("http") or value.startswith("urn:"):
+        return value
+    prefix = _CODE_SYSTEM_FOR_FIELD.get(key)
+    if prefix is None:
+        return value
+    return f"{NAMESPACES[prefix]}{value}"
 
 
 def _escape_turtle_string(s: str) -> str:
@@ -215,7 +332,7 @@ def _collect_prefixes_from_dict(
                 prefixes[ns_prefix] = NAMESPACES[ns_prefix]
 
         if isinstance(value, str) and key in uri_fields:
-            _add_prefix_for_uri(value, prefixes)
+            _add_prefix_for_uri(_expand_code_uri(key, value), prefixes)
 
         if isinstance(value, list) and key in array_fields:
             for item in value:
@@ -284,6 +401,8 @@ def _serialize_dict(
     uri_fields = _URI_FIELDS_CAMEL if camel else _URI_FIELDS_SNAKE
     array_fields = _ARRAY_FIELDS_CAMEL if camel else _ARRAY_FIELDS_SNAKE
     integer_typed = _INTEGER_TYPED_FIELDS_CAMEL if camel else _INTEGER_TYPED_FIELDS_SNAKE
+    decimal_typed = _DECIMAL_TYPED_FIELDS_CAMEL if camel else _DECIMAL_TYPED_FIELDS_SNAKE
+    type_datetime = _TYPE_DATETIME_FIELDS.get(record_type, set())
     overrides = _TYPE_PREDICATE_OVERRIDES.get(f"_camel_{record_type}" if camel else record_type, {})
 
     # Collect prefixes
@@ -319,6 +438,14 @@ def _serialize_dict(
             triple_lines.append(f"    {pred} cascade:{value}")
             return
 
+        # health:sleepQuality takes an IRI object (health:Good), not a string
+        # literal. Emitting the string form would produce data no known Cascade
+        # deserializer reads and would fail the shape's sh:in over the four
+        # health: individuals.
+        if key in _HEALTH_IRI_ENUM_FIELDS and isinstance(value, str):
+            triple_lines.append(f"    {pred} health:{value}")
+            return
+
         # Boolean
         if isinstance(value, bool):
             triple_lines.append(f"    {pred} {'true' if value else 'false'}")
@@ -328,6 +455,13 @@ def _serialize_dict(
         if key in integer_typed and isinstance(value, (int, float)) and not isinstance(value, bool):
             int_val = int(value)
             triple_lines.append(f'    {pred} "{int_val}"^^xsd:integer')
+            return
+
+        # Decimal typed fields (xsd:decimal). Explicit, because a bare Turtle
+        # numeric for a whole-numbered value is xsd:integer, which the shape
+        # rejects.
+        if key in decimal_typed and isinstance(value, (int, float)) and not isinstance(value, bool):
+            triple_lines.append(f'    {pred} "{float(value)}"^^xsd:decimal')
             return
 
         # Numeric
@@ -340,10 +474,7 @@ def _serialize_dict(
 
         # URI fields
         if key in uri_fields and isinstance(value, str):
-            if value.startswith("http") or value.startswith("urn:"):
-                triple_lines.append(f"    {pred} <{value}>")
-            else:
-                triple_lines.append(f"    {pred} <{value}>")
+            triple_lines.append(f"    {pred} <{_expand_code_uri(key, value)}>")
             return
 
         # Array fields (repeated predicates for URIs, RDF lists for strings)
@@ -370,6 +501,12 @@ def _serialize_dict(
         # Date-only fields (xsd:date)
         if isinstance(value, str) and _is_date_only_field(key, camel):
             triple_lines.append(f'    {pred} "{_escape_turtle_string(value)}"^^xsd:date')
+            return
+
+        # DateTime fields carried on a type that overrides the plain-string
+        # default for that field name (health v2.5 daily entries).
+        if isinstance(value, str) and key in type_datetime:
+            triple_lines.append(f'    {pred} "{_escape_turtle_string(value)}"^^xsd:dateTime')
             return
 
         # DateTime fields (xsd:dateTime)
@@ -550,3 +687,152 @@ def serialize_activity_snapshot(activity: ActivitySnapshot) -> str:
 def serialize_sleep_snapshot(sleep: SleepSnapshot) -> str:
     """Serialize a SleepSnapshot record to Turtle."""
     return serialize(sleep)
+
+
+def serialize_daily_activity_snapshot(snapshot: DailyActivitySnapshot) -> str:
+    """Serialize a DailyActivitySnapshot record to Turtle (health v2.5)."""
+    return serialize(snapshot)
+
+
+def serialize_daily_sleep_snapshot(snapshot: DailySleepSnapshot) -> str:
+    """Serialize a DailySleepSnapshot record to Turtle (health v2.5)."""
+    return serialize(snapshot)
+
+
+def serialize_daily_vital_reading(reading: DailyVitalReading) -> str:
+    """Serialize a DailyVitalReading record to Turtle (health v2.5)."""
+    return serialize(reading)
+
+
+# ---------------------------------------------------------------------------
+# Pod export manifest (core v3.4)
+# ---------------------------------------------------------------------------
+
+_MANIFEST_PREFIXES: list[tuple[str, str]] = [
+    ("cascade", NAMESPACES["cascade"]),
+    ("prov", NAMESPACES["prov"]),
+    ("dcterms", NAMESPACES["dcterms"]),
+    ("xsd", NAMESPACES["xsd"]),
+]
+
+# Order in which RecordSummary counts are written. Fixed so two manifests with
+# the same content serialize identically.
+_SUMMARY_COUNT_ORDER: list[tuple[str, str]] = [
+    ("condition_count", "cascade:conditionCount"),
+    ("medication_count", "cascade:medicationCount"),
+    ("allergy_count", "cascade:allergyCount"),
+    ("lab_result_count", "cascade:labResultCount"),
+    ("immunization_count", "cascade:immunizationCount"),
+    ("coverage_count", "cascade:coverageCount"),
+    ("supplement_count", "cascade:supplementCount"),
+    ("vital_sign_days", "cascade:vitalSignDays"),
+    ("heart_rate_days", "cascade:heartRateDays"),
+    ("blood_pressure_days", "cascade:bloodPressureDays"),
+    ("activity_days", "cascade:activityDays"),
+    ("sleep_days", "cascade:sleepDays"),
+]
+
+
+def _summary_block(summary: RecordSummary, indent: str) -> str:
+    """Render a RecordSummary as an inline blank node."""
+    lines = [f"{indent}a cascade:RecordSummary"]
+    lines.append(f'{indent}cascade:domain "{_escape_turtle_string(summary.domain)}"')
+    for attr, pred in _SUMMARY_COUNT_ORDER:
+        val = getattr(summary, attr)
+        if val is None:
+            continue
+        lines.append(f'{indent}{pred} "{int(val)}"^^xsd:integer')
+    if summary.data_provenance:
+        lines.append(f"{indent}cascade:dataProvenance cascade:{summary.data_provenance}")
+    if summary.notes:
+        # cascade:notes, not health:notes — the manifest spelling is the core one.
+        lines.append(f'{indent}cascade:notes "{_escape_turtle_string(summary.notes)}"')
+    return " ;\n".join(lines)
+
+
+def serialize_export_manifest(manifest: ExportManifest) -> str:
+    """
+    Serialize a pod :class:`ExportManifest` to Turtle (core v3.4).
+
+    The manifest is structurally unlike a flat record — nested blank nodes and
+    rdf:Lists throughout — so it has its own writer rather than being forced
+    through the generic record path.
+
+    An empty ``manifest.id`` serializes as ``<>``, the empty relative IRI
+    meaning "this document", which is what a pod's ``manifest.ttl`` carries.
+
+    Args:
+        manifest: The manifest to serialize.
+
+    Returns:
+        A complete Turtle document string.
+    """
+    writer = _TurtleWriter()
+    for name, uri in _MANIFEST_PREFIXES:
+        writer.prefix(name, uri)
+    writer.blank_line()
+
+    subject = f"<{manifest.id}>"
+    lines: list[str] = ["    a cascade:ExportManifest"]
+
+    if manifest.title:
+        lines.append(f'    dcterms:title "{_escape_turtle_string(manifest.title)}"')
+    if manifest.description:
+        lines.append(f'    dcterms:description "{_escape_turtle_string(manifest.description)}"')
+    if manifest.created:
+        lines.append(f'    dcterms:created "{_escape_turtle_string(manifest.created)}"^^xsd:dateTime')
+    if manifest.creator:
+        lines.append(f'    dcterms:creator "{_escape_turtle_string(manifest.creator)}"')
+    if manifest.schema_version:
+        lines.append(f'    cascade:schemaVersion "{_escape_turtle_string(manifest.schema_version)}"')
+    if manifest.patient_profile_version:
+        lines.append(
+            f'    cascade:patientProfileVersion "{_escape_turtle_string(manifest.patient_profile_version)}"'
+        )
+
+    if manifest.provenance_layers:
+        # An rdf:List of cascade: provenance IRIs, not string literals.
+        items = " ".join(f"cascade:{layer}" for layer in manifest.provenance_layers)
+        lines.append(f"    cascade:provenanceLayers ( {items} )")
+
+    if manifest.clinical_summary is not None:
+        block = _summary_block(manifest.clinical_summary, "        ")
+        lines.append(f"    cascade:clinicalSummary [\n{block}\n    ]")
+    if manifest.wellness_summary is not None:
+        block = _summary_block(manifest.wellness_summary, "        ")
+        lines.append(f"    cascade:wellnessSummary [\n{block}\n    ]")
+
+    if manifest.device_sources:
+        entries = []
+        for device in manifest.device_sources:
+            parts = ["a prov:Agent", f'prov:label "{_escape_turtle_string(device.label)}"']
+            if device.source_type:
+                parts.append(f'cascade:sourceType "{_escape_turtle_string(device.source_type)}"')
+            if device.data_types:
+                parts.append(f'cascade:dataTypes "{_escape_turtle_string(device.data_types)}"')
+            entries.append("        [ " + " ; ".join(parts) + " ]")
+        joined = "\n".join(entries)
+        lines.append(f"    cascade:deviceSources (\n{joined}\n    )")
+
+    if manifest.interaction_scenarios:
+        entries = []
+        for scenario in manifest.interaction_scenarios:
+            inner = ["            a cascade:InteractionScenario"]
+            inner.append(f'            dcterms:title "{_escape_turtle_string(scenario.title)}"')
+            if scenario.description:
+                inner.append(
+                    f'            dcterms:description "{_escape_turtle_string(scenario.description)}"'
+                )
+            resources = " ".join(f"<{r}>" for r in scenario.involved_resources)
+            inner.append(f"            cascade:involvedResources ( {resources} )")
+            if scenario.severity:
+                inner.append(f'            cascade:severity "{_escape_turtle_string(scenario.severity)}"')
+            if scenario.requires_cross_provenance is not None:
+                flag = "true" if scenario.requires_cross_provenance else "false"
+                inner.append(f"            cascade:requiresCrossProvenance {flag}")
+            entries.append("        [\n" + " ;\n".join(inner) + "\n        ]")
+        joined = "\n".join(entries)
+        lines.append(f"    cascade:interactionScenarios (\n{joined}\n    )")
+
+    writer.raw(f"{subject} " + " ;\n".join(lines) + " .")
+    return writer.build()

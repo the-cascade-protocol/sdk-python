@@ -52,6 +52,20 @@ from cascade_protocol.models import (
     ActivitySnapshot,
     SleepSnapshot,
     HealthProfile,
+    DailyActivitySnapshot,
+    DailySleepSnapshot,
+    DailyVitalReading,
+    WellnessContainer,
+    ActivityData,
+    SleepData,
+    HeartRateData,
+    BloodPressureData,
+    HRVData,
+    BodyMeasurements,
+    ExportManifest,
+    RecordSummary,
+    InteractionScenario,
+    DeviceSource,
     ClinicalSocialHistoryRecord,
     SocialHistoryRecord,
     AIExtractionActivity,
@@ -62,6 +76,7 @@ from cascade_protocol.models import (
     ProxyAgent,
     # Type aliases
     GenerationTrigger,
+    SleepQuality,
     ProvenanceType,
     ProvenanceClass,
     ConditionStatus,
@@ -98,8 +113,17 @@ from cascade_protocol.serializer.turtle_serializer import (
     serialize_patient_profile,
     serialize_activity_snapshot,
     serialize_sleep_snapshot,
+    serialize_daily_activity_snapshot,
+    serialize_daily_sleep_snapshot,
+    serialize_daily_vital_reading,
+    serialize_export_manifest,
 )
-from cascade_protocol.deserializer.turtle_parser import parse, parse_one
+from cascade_protocol.deserializer.turtle_parser import (
+    parse,
+    parse_one,
+    parse_wellness_container,
+    parse_export_manifest,
+)
 from cascade_protocol.validator.validator import (
     validate,
     validate_dict,
@@ -123,9 +147,14 @@ from cascade_protocol.vocabularies.namespaces import (
     TYPE_TO_MAPPING_KEY,
     PROPERTY_PREDICATES,
     CURRENT_SCHEMA_VERSION,
+    DEPRECATED_TYPE_ALIASES,
+    RECORD_SUMMARY_COUNT_CLASSES,
+    RECORD_SUMMARY_ENTITY_COUNTS,
+    RECORD_SUMMARY_DAY_COUNTS,
+    WELLNESS_HISTORY_PROPERTIES,
 )
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 __author__ = "Cascade Agentic Labs"
 __license__ = "Apache-2.0"
 
@@ -158,6 +187,20 @@ __all__ = [
     "ActivitySnapshot",
     "SleepSnapshot",
     "HealthProfile",
+    "DailyActivitySnapshot",
+    "DailySleepSnapshot",
+    "DailyVitalReading",
+    "WellnessContainer",
+    "ActivityData",
+    "SleepData",
+    "HeartRateData",
+    "BloodPressureData",
+    "HRVData",
+    "BodyMeasurements",
+    "ExportManifest",
+    "RecordSummary",
+    "InteractionScenario",
+    "DeviceSource",
     "ClinicalSocialHistoryRecord",
     "SocialHistoryRecord",
     "AIExtractionActivity",
@@ -168,6 +211,7 @@ __all__ = [
     "ProxyAgent",
     # Type aliases
     "GenerationTrigger",
+    "SleepQuality",
     "ProvenanceType",
     "ProvenanceClass",
     "ConditionStatus",
@@ -203,9 +247,15 @@ __all__ = [
     "serialize_patient_profile",
     "serialize_activity_snapshot",
     "serialize_sleep_snapshot",
+    "serialize_daily_activity_snapshot",
+    "serialize_daily_sleep_snapshot",
+    "serialize_daily_vital_reading",
+    "serialize_export_manifest",
     # Deserialization
     "parse",
     "parse_one",
+    "parse_wellness_container",
+    "parse_export_manifest",
     # Validation
     "validate",
     "validate_dict",
@@ -229,4 +279,9 @@ __all__ = [
     "TYPE_TO_MAPPING_KEY",
     "PROPERTY_PREDICATES",
     "CURRENT_SCHEMA_VERSION",
+    "DEPRECATED_TYPE_ALIASES",
+    "RECORD_SUMMARY_COUNT_CLASSES",
+    "RECORD_SUMMARY_ENTITY_COUNTS",
+    "RECORD_SUMMARY_DAY_COUNTS",
+    "WELLNESS_HISTORY_PROPERTIES",
 ]
