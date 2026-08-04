@@ -39,12 +39,33 @@ The pre-commit hook will block commits to `src/cascade_protocol/models/` or `voc
 
 Check `VOCAB_VERSIONS` at the repo root. Compare against `spec/VOCAB_VERSIONS` to see what's behind.
 
-### Known gaps (as of 2026-03-20)
+### Known gaps (as of 2026-08-04)
 
-See `VOCAB_VERSIONS` comments. Priority items:
-- **Clinical v1.7**: Encounter, MedicationAdministration, ImplantedDevice, ImagingStudy (all missing)
-- **Coverage v1.3**: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord, DenialReasonCode (all missing)
-- **Core v2.8**: FHIR passthrough properties (`layerPromotionStatus`, `fhirJson`, `fhirResourceType`, `sourceRecordDate`)
+The clinical v1.7, coverage v1.3 and core v2.8 items previously listed here
+have all shipped. What is actually missing now:
+
+- **Deserializer registration.** `parse()` returns an EMPTY LIST — not an
+  error — for several types that serialize correctly: `Encounter`,
+  `MedicationAdministration`, `ImplantedDevice`, `ImagingStudy`,
+  `ClaimRecord`, `BenefitStatement`, `DenialNotice`, `AppealRecord`,
+  `ClinicalSocialHistoryRecord`, `AIExtractionActivity`,
+  `AIDiscardedExtraction`, `SocialHistoryConsent`. Each needs an entry in
+  `_TYPE_CLASS_MAP` in `deserializer/turtle_parser.py`. Read a round trip,
+  not just a serialize, when adding a class.
+- **`clinical:Supplement`** has a `TYPE_MAPPING` entry but no model class.
+- **`health:BloodPressureReading` / `health:HRVReading`** are not modelled, so
+  the `BloodPressureData` and `HRVData` wellness containers read with an empty
+  history.
+- **`clinical:LaboratoryReport`** is not modelled, so `clinical:hasLabResult`
+  panel grouping is unimplemented.
+
+### Reading vs writing deprecated vocabulary
+
+Deprecated is not removed. When a class or property is deprecated upstream,
+the deserializer keeps accepting it (see `DEPRECATED_TYPE_ALIASES`) and the
+serializer stops emitting it. Dropping read support turns a pod full of
+records into a pod that reads as empty, which is worse than an error because
+nothing reports it.
 
 ## Commit Conventions
 

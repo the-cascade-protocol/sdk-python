@@ -59,6 +59,24 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "AdvisoryApplicationActivity": ["id", "type"],
     "AIGenerationActivity": ["id", "type", "extractionModel", "trigger"],
     "ProxyAgent": ["id", "type", "actsForPatient", "proxyRelationship", "proxyGrantedAt"],
+    # -- health v2.5 -- single-day history entries.
+    #    DailyVitalReading's timestamp requirement is an sh:or over two
+    #    spellings, not a plain minCount, so it is enforced separately below
+    #    rather than listed here.
+    "DailyActivitySnapshot": ["id", "type", "date"],
+    "DailySleepSnapshot": ["id", "type", "date"],
+    "DailyVitalReading": ["id", "type"],
+    # -- core v3.4 -- pod export manifest.
+    #    ExportManifestShape requires title, created and schemaVersion:
+    #    without a schema version a consumer cannot decide whether it can read
+    #    the export at all.
+    #    'id' is deliberately NOT required for these three: a manifest's
+    #    subject is the empty relative IRI <> ("this document"), and record
+    #    summaries, scenarios and device sources are blank nodes. Requiring a
+    #    non-empty id would reject every conforming manifest ever written.
+    "ExportManifest": ["type", "title", "created", "schemaVersion"],
+    "RecordSummary": ["type", "domain"],
+    "InteractionScenario": ["type", "title", "involvedResources"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -91,6 +109,14 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "AdvisoryApplicationActivity": ["id", "type"],
     "AIGenerationActivity": ["id", "type", "extraction_model", "trigger"],
     "ProxyAgent": ["id", "type", "acts_for_patient", "proxy_relationship", "proxy_granted_at"],
+    # -- health v2.5 --
+    "DailyActivitySnapshot": ["id", "type", "date"],
+    "DailySleepSnapshot": ["id", "type", "date"],
+    "DailyVitalReading": ["id", "type"],
+    # -- core v3.4 -- see the camelCase table for why 'id' is absent here.
+    "ExportManifest": ["type", "title", "created", "schema_version"],
+    "RecordSummary": ["type", "domain"],
+    "InteractionScenario": ["type", "title", "involved_resources"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
@@ -117,6 +143,57 @@ _VALID_VITAL_TYPES = frozenset({
 })
 
 _SCHEMA_VERSION_PATTERN = r"^\d+\.\d+$"
+
+# Categories permitted on clinical:SocialHistoryRecord by
+# clinical:SocialHistoryRecordShape (clinical v1.8). Enforced here because the
+# structural validator is the only check most consumers run: without it a
+# record categorised "tobacco" instead of "smokingStatus" validated clean and
+# then failed to match any query keyed on the defined set.
+_VALID_SOCIAL_HISTORY_CATEGORIES = frozenset({
+    "smokingStatus",
+    "alcoholUse",
+    "substanceUse",
+    "occupation",
+    "exercise",
+    "diet",
+    "sexualHistory",
+    "other",
+})
+
+# health:sleepQuality ranges over four named individuals (health v2.5). A
+# vendor-specific label leaking through an importer is the realistic way an
+# out-of-vocabulary value gets here, and without the check it would be stored
+# and later compared against the four defined ratings as if it were one.
+_VALID_SLEEP_QUALITY = frozenset({"Excellent", "Good", "Fair", "Poor"})
+
+# cascade:InteractionScenarioShape sh:in.
+_VALID_INTERACTION_SEVERITY = frozenset({"low", "moderate", "high", "critical"})
+
+# Numeric bounds asserted by the health v2.5 daily-snapshot shapes and the
+# core v3.4 record-summary shape. (field, record types, lower, upper).
+# A day count larger than a decade of daily readings is a unit error, not a
+# long history; exercise minutes above 1440 is a seconds-for-minutes mix-up at
+# an import boundary, which is silently plausible without the bound.
+_NUMERIC_BOUNDS: list[tuple[str, str, frozenset[str], float, float | None]] = [
+    ("steps", "steps", frozenset({"DailyActivitySnapshot"}), 0, None),
+    ("activeEnergyKcal", "active_energy_kcal", frozenset({"DailyActivitySnapshot"}), 0, None),
+    ("exerciseMinutes", "exercise_minutes", frozenset({"DailyActivitySnapshot"}), 0, 1440),
+    ("standHours", "stand_hours", frozenset({"DailyActivitySnapshot"}), 0, 24),
+    ("durationHours", "duration_hours", frozenset({"DailySleepSnapshot"}), 0, 24),
+    ("sampleCount", "sample_count", frozenset({"DailyVitalReading"}), 0, None),
+    ("conditionCount", "condition_count", frozenset({"RecordSummary"}), 0, None),
+    ("medicationCount", "medication_count", frozenset({"RecordSummary"}), 0, None),
+    ("allergyCount", "allergy_count", frozenset({"RecordSummary"}), 0, None),
+    ("labResultCount", "lab_result_count", frozenset({"RecordSummary"}), 0, None),
+    ("immunizationCount", "immunization_count", frozenset({"RecordSummary"}), 0, None),
+    ("coverageCount", "coverage_count", frozenset({"RecordSummary"}), 0, None),
+    ("supplementCount", "supplement_count", frozenset({"RecordSummary"}), 0, None),
+    ("vitalSignDays", "vital_sign_days", frozenset({"RecordSummary"}), 0, 36500),
+    ("heartRateDays", "heart_rate_days", frozenset({"RecordSummary"}), 0, 36500),
+    ("bloodPressureDays", "blood_pressure_days", frozenset({"RecordSummary"}), 0, 36500),
+    ("activityDays", "activity_days", frozenset({"RecordSummary"}), 0, 36500),
+    ("sleepDays", "sleep_days", frozenset({"RecordSummary"}), 0, 36500),
+]
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -222,6 +299,83 @@ def _validate_dict_structural(data: dict[str, Any]) -> list[str]:
                 f"Invalid vitalType: {vital_type!r}. "
                 f"Must be one of: {sorted(_VALID_VITAL_TYPES)}"
             )
+
+    errors.extend(_validate_enums_and_bounds(str(record_type), data))
+    return errors
+
+
+def _get_either(data: dict[str, Any], camel: str, snake: str) -> Any:
+    """Return the camelCase value if present, else the snake_case one."""
+    if camel in data and data[camel] is not None:
+        return data[camel]
+    return data.get(snake)
+
+
+def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[str]:
+    """
+    Enumeration and numeric-range checks lifted from the SHACL shapes.
+
+    Kept separate from the required-field pass because these are constraints
+    on a value that IS present, which is the class of defect a required-field
+    check cannot see: a record with every field populated and one of them
+    out of range validates clean without them.
+    """
+    errors: list[str] = []
+
+    # Keyed on the PROPERTY, not on the record type: health: and clinical:
+    # social history records are both spelled "SocialHistoryRecord" in the
+    # type field, and only the clinical: one carries socialHistoryCategory.
+    # The shape constrains the property, so the check follows the property.
+    category = _get_either(data, "socialHistoryCategory", "social_history_category")
+    if category and str(category) not in _VALID_SOCIAL_HISTORY_CATEGORIES:
+        errors.append(
+            f"Invalid socialHistoryCategory: {category!r}. "
+            f"Must be one of: {sorted(_VALID_SOCIAL_HISTORY_CATEGORIES)}"
+        )
+
+    if record_type == "DailySleepSnapshot":
+        quality = _get_either(data, "sleepQuality", "sleep_quality")
+        if quality and str(quality) not in _VALID_SLEEP_QUALITY:
+            errors.append(
+                f"Invalid sleepQuality: {quality!r}. "
+                f"Must be one of: {sorted(_VALID_SLEEP_QUALITY)}"
+            )
+
+    if record_type == "DailyVitalReading":
+        # health:DailyVitalReadingShape requires a timestamp through a
+        # node-level sh:or over cascade:date and health:date, because two live
+        # emitters spell it differently. Omitting BOTH is the only violation,
+        # and it is exactly the failure that drops a reading out of the time
+        # series it belongs to.
+        if not _get_either(data, "date", "date"):
+            errors.append(
+                "Missing timestamp: a DailyVitalReading must carry a date "
+                "(serialized as either cascade:date or health:date)"
+            )
+
+    if record_type == "InteractionScenario":
+        severity = data.get("severity")
+        if severity and str(severity) not in _VALID_INTERACTION_SEVERITY:
+            errors.append(
+                f"Invalid severity: {severity!r}. "
+                f"Must be one of: {sorted(_VALID_INTERACTION_SEVERITY)}"
+            )
+
+    for camel, snake, types, low, high in _NUMERIC_BOUNDS:
+        if record_type not in types:
+            continue
+        raw = _get_either(data, camel, snake)
+        if raw is None:
+            continue
+        try:
+            num = float(raw)
+        except (TypeError, ValueError):
+            errors.append(f"Invalid {camel}: {raw!r} is not numeric")
+            continue
+        if num < low:
+            errors.append(f"Invalid {camel}: {raw!r} is below the minimum of {low}")
+        elif high is not None and num > high:
+            errors.append(f"Invalid {camel}: {raw!r} exceeds the maximum of {high}")
 
     return errors
 

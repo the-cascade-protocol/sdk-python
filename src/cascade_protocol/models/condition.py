@@ -72,6 +72,30 @@ class Condition(CascadeRecord):
     Maps to ``health:monitoredVitalSigns`` as an RDF list in Turtle serialization.
     """
 
+    has_encounter: str | None = None
+    """
+    IRI of the ``clinical:Encounter`` (visit context) this condition was
+    recorded within. Maps to ``clinical:hasEncounter`` (clinical v1.10).
+    """
+
+    linked_condition: list[str] | None = None
+    """
+    IRIs of related conditions (e.g. a complication and its root condition).
+    Maps to ``clinical:linkedCondition`` (clinical v1.10) as repeated IRI
+    objects — a real, traversable RDF edge.
+    """
+
+    linked_condition_ids: str | None = None
+    """
+    DEPRECATED (clinical v1.10, ``owl:deprecated true``). Related-condition
+    UUIDs packed into one space-separated literal, which no graph query can
+    follow. Use ``linked_condition`` instead.
+
+    Read support only: the property is registered so existing data carrying it
+    is not silently dropped on parse. Nothing in this SDK writes it.
+    Maps to ``clinical:linkedConditionIds``.
+    """
+
     @classmethod
     def from_dataframe(cls, df: "pd.DataFrame") -> list["Condition"]:  # type: ignore[name-defined]
         """Reconstruct a list of Condition records from a pandas DataFrame."""

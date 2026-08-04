@@ -5,6 +5,42 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-04
+
+### Added
+
+Core v3.4 — pod export manifest (all 32 terms):
+- `ExportManifest`, `RecordSummary`, `InteractionScenario` and `DeviceSource` models.
+- `serialize_export_manifest()`, `parse_export_manifest()` and `Pod.manifest()`. A pod's `manifest.ttl` was previously unreadable: none of the 32 terms was registered, so the file parsed to nothing.
+- `ExportManifest` is modelled on `dcat:Dataset`, so its descriptive fields map to `dcterms:title` / `description` / `created` / `creator` rather than to Cascade-specific inventions.
+- `RECORD_SUMMARY_COUNT_CLASSES` pairs each entity count with the `void:class` it counts (`cascade:RecordSummary` is a `void:Dataset` and the counts are `void:entities` subproperties). `RECORD_SUMMARY_DAY_COUNTS` holds the five day counts, which are deliberately not entity counts: a 30-day heart rate history holds far more than 30 readings.
+- Reading-level `cascade:date`, `cascade:sampleCount` and `cascade:loincCode`.
+
+Health v2.5:
+- `DailyActivitySnapshot`, `DailySleepSnapshot`, `DailyVitalReading` models — the single-day history entries, kept distinct from the 7-day `ActivitySnapshot` / `SleepSnapshot` aggregates.
+- The five daily-snapshot properties (`steps`, `activeEnergyKcal`, `exerciseMinutes`, `standHours`, `durationHours`). The other 35 properties v2.5 defines were already supported.
+- The four `health:sleepQuality` named individuals, read and written as `health:` IRIs (`health:sleepQuality health:Good`) rather than string literals.
+- Six wellness container models (`ActivityData`, `SleepData`, `HeartRateData`, `BloodPressureData`, `HRVData`, `BodyMeasurements`) with `parse_wellness_container()` and `Pod.containers()`, which preserve `rdf:List` entry order — the histories are time series and order is part of the data.
+- `Pod` query keys `daily-activity`, `daily-sleep`, `daily-vitals`.
+
+Clinical v1.10-v1.13:
+- `has_encounter`, `indication_reference`, `parsed_indication_reference` and `linked_condition` as traversable IRI edges on `Condition`, `Medication`, `Procedure`, `LabResult` and `MedicationAdministration`.
+- `linked_condition_ids` registered for read only (deprecated in v1.10, retained so existing data is not dropped on parse; never written).
+- `DEPRECATED_TYPE_ALIASES`: the deserializer accepts `clinical:LabResult`, `clinical:Condition`, `clinical:Allergy` and `clinical:Immunization` (deprecated in v1.13, not removed — existing pods contain them). The serializer emits only the `health:` forms.
+
+### Fixed
+- `clinical:socialHistoryCategory` is now checked against its value set. The version file claimed clinical v1.9 support but the validator accepted any category.
+- `health:activeEnergyKcal` and `health:durationHours` now serialize with an explicit `^^xsd:decimal`. A whole-numbered value emitted as a bare Turtle numeric is `xsd:integer`, which violates the shape — a defect that only appeared on round numbers.
+- Bare code values on `loincCode` / `testCode` / `snomedCode` / `icd10Code` / `rxNormCode` are expanded against their code system instead of being written as relative IRIs, which resolved against the document base and denoted a different resource per host.
+
+### Changed
+- VOCAB_VERSIONS updated: core=3.4, health=2.5, clinical=1.13.
+- `dcat` and `void` registered in `NAMESPACES` as URI constants for the core v3.4 superclass axioms. The SDK does no RDFS/OWL inference over them.
+
+### Known gaps
+- `health:BloodPressureReading` and `health:HRVReading` are not modelled, so `BloodPressureData` and `HRVData` containers read with an empty history.
+- `parse()` returns an empty list for several record types that serialize correctly (`Encounter`, `MedicationAdministration`, `ImplantedDevice`, `ImagingStudy`, `ClaimRecord`, `BenefitStatement`, `DenialNotice`, `AppealRecord`, `ClinicalSocialHistoryRecord`, `AIExtractionActivity`, `AIDiscardedExtraction`, `SocialHistoryConsent`). Predates this release.
+
 ## [1.4.0] - 2026-06-22
 
 ### Added

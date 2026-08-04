@@ -101,6 +101,15 @@ class LabResult(CascadeRecord):
     Maps to ``health:performingLab`` in Turtle serialization.
     """
 
+
+    has_encounter: str | None = None
+    """
+    IRI of the ``clinical:Encounter`` (visit context) this record occurred
+    within. Maps to ``clinical:hasEncounter`` (clinical v1.10).
+
+    FHIR alignment: the ``.encounter`` Reference(Encounter) element.
+    """
+
     @classmethod
     def from_dataframe(cls, df: "pd.DataFrame") -> list["LabResult"]:  # type: ignore[name-defined]
         """Reconstruct a list of LabResult records from a pandas DataFrame."""
