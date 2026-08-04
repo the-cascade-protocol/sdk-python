@@ -1,0 +1,112 @@
+name: Release to PyPI
+
+# Publishing is driven by the tag, so a version can no longer be bumped in
+# pyproject.toml, merged, and then silently never shipped. Pushing v1.5.0 is
+# what publishes 1.5.0, and the build job refuses to proceed if those two
+# numbers disagree.
+#
+# Authentication is PyPI Trusted Publishing (OIDC): no API token is stored in
+# this repository. Before the first run, configure the publisher at
+# https://pypi.org/manage/project/cascade-protocol/settings/publishing/ with:
+#
+#   Owner:                the-cascade-protocol
+#   Repository name:      sdk-python
+#   Workflow name:        release.yml
+#   Environment name:     pypi
+#
+# The environment name must match the `environment:` key on the publish job.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out sdk-python
+        uses: actions/checkout@v4
+        with:
+          path: sdk-python
+
+      # Sibling layout, for the same reason as ci.yml.
+      - name: Check out conformance as a sibling
+        uses: actions/checkout@v4
+        with:
+          repository: the-cascade-protocol/conformance
+          path: conformance
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install
+        working-directory: sdk-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      - name: Test
+        working-directory: sdk-python
+        run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A tag that disagrees with pyproject.toml would publish a version nobody
+      # asked for, and PyPI does not allow re-uploading a version to correct it.
+      - name: Refuse to build if the tag and pyproject.toml disagree
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          proj="$(grep -m1 '^version' pyproject.toml | sed 's/.*= *//; s/"//g')"
+          echo "tag=${tag} pyproject=${proj}"
+          if [ "${tag}" != "${proj}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match pyproject.toml version ${proj}"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Upload the built distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Required for Trusted Publishing. Scoped to this job only, so no other
+      # job in this workflow can mint an OIDC token.
+      id-token: write
+
+    steps:
+      - name: Download the built distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # Publishes with no stored credential and attaches PEP 740 attestations
+      # by default (action v1.11.0+).
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

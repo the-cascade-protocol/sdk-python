@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor and ceiling of the declared requires-python range.
+        python-version: ['3.10', '3.13']
+
+    steps:
+      - name: Check out sdk-python
+        uses: actions/checkout@v4
+        with:
+          path: sdk-python
+
+      # The suite resolves the cross-SDK determinism vectors at
+      # <parent>/conformance/fixtures/, so conformance must be a SIBLING of this
+      # checkout rather than a subdirectory of it. Without this step the vector
+      # tests do not merely fail, they stop exercising cross-SDK identity at all,
+      # which is the failure mode the in-suite guard below is there to catch.
+      - name: Check out conformance as a sibling
+        uses: actions/checkout@v4
+        with:
+          repository: the-cascade-protocol/conformance
+          path: conformance
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        working-directory: sdk-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      - name: Test
+        working-directory: sdk-python
+        run: pytest -q
+
+      # pytest exits 5 when it collects nothing, so a suite that vanishes fails
+      # here rather than reporting success. The narrower risk -- the suite runs
+      # but silently stops loading the shared fixtures -- is covered inside the
+      # suite by test_conformance_vectors_are_loaded, which asserts the vector
+      # file was found and non-empty.
+      - name: Confirm the fixture-backed tests actually ran
+        working-directory: sdk-python
+        run: pytest -q tests/test_deterministic_uri.py::test_conformance_vectors_are_loaded
