@@ -25,6 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from cascade_protocol.models.common import OBSERVATION_INTERPRETATION_VALUES
+
 # ---------------------------------------------------------------------------
 # Required fields per record type
 # ---------------------------------------------------------------------------
@@ -168,6 +170,28 @@ _VALID_SLEEP_QUALITY = frozenset({"Excellent", "Good", "Fair", "Poor"})
 
 # cascade:InteractionScenarioShape sh:in.
 _VALID_INTERACTION_SEVERITY = frozenset({"low", "moderate", "high", "critical"})
+
+# health:interpretation and clinical:interpretation (health v2.6 / clinical
+# v1.14). The two properties carry identical sh:in lists, so the check is keyed
+# on the PROPERTY and serves lab results and vital signs alike; a check that
+# fired only on one record type would let the same out-of-vocabulary value
+# through on the other, which the shapes reject in both places.
+_VALID_INTERPRETATIONS = OBSERVATION_INTERPRETATION_VALUES
+
+# One value accepted on top of the ratified set, and the only one.
+#
+# "elevated" is NOT in the HL7 v3 ObservationInterpretation code system and no
+# Cascade shape has ever accepted it, so a record carrying it fails
+# `cascade validate`. It is accepted HERE because this package put it into the
+# world: LabInterpretation and VitalInterpretation both named it through
+# v1.5.0, records were written against those aliases, and the conformance
+# corpus still asserts it must be accepted (vital-001 and vital-004 are
+# POSITIVE fixtures carrying it). Rejecting it would fail this SDK against the
+# ecosystem's own oracle while breaking data this SDK told callers was valid.
+#
+# REMOVAL TRIGGER: when those two fixtures move to a ratified code, delete this
+# set and the branch that reads it. Nothing else depends on it.
+_SDK_LEGACY_INTERPRETATIONS = frozenset({"elevated"})
 
 # Numeric bounds asserted by the health v2.5 daily-snapshot shapes and the
 # core v3.4 record-summary shape. (field, record types, lower, upper).
@@ -332,6 +356,18 @@ def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[s
             f"Invalid socialHistoryCategory: {category!r}. "
             f"Must be one of: {sorted(_VALID_SOCIAL_HISTORY_CATEGORIES)}"
         )
+
+    # Keyed on the property, for the reason given at _VALID_INTERPRETATIONS.
+    interpretation = data.get("interpretation")
+    if interpretation and str(interpretation) not in _VALID_INTERPRETATIONS:
+        if str(interpretation) not in _SDK_LEGACY_INTERPRETATIONS:
+            errors.append(
+                f"Invalid interpretation: {interpretation!r}. Must be a code from the "
+                f"HL7 v3 ObservationInterpretation code system "
+                f"(http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation), "
+                f"the data-absent-reason code 'unknown', or one of the retained words "
+                f"normal / high / low / abnormal / critical"
+            )
 
     if record_type == "DailySleepSnapshot":
         quality = _get_either(data, "sleepQuality", "sleep_quality")

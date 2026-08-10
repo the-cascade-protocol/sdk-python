@@ -25,6 +25,7 @@ Core v3.5:
 
 Health v2.6 and clinical v1.14:
 - `ObservationInterpretation` type alias plus `OBSERVATION_INTERPRETATION_CODES` (ordered tuple) and `OBSERVATION_INTERPRETATION_VALUES` (frozenset), exported from the package root. The 49 selectable codes of the HL7 v3 ObservationInterpretation code system (version 3.0.0, in the code system's own order), plus the data-absent-reason code `"unknown"`, plus the ten retained legacy words. Laboratories report susceptibility (`S`/`I`/`R`), detection (`POS`/`NEG`/`DET`/`ND`/`IND`), reactivity (`RR`/`WR`/`NR`) and change (`B`/`D`/`U`/`W`) results, all conformant FHIR, and none of them had any representation here.
+- The value set is enforced by `validate()` / `validate_dict()`, keyed on the property so it covers `health:interpretation` and `clinical:interpretation` alike. An out-of-vocabulary value was previously accepted silently.
 - The list is pinned by a SHA-256 checksum recorded next to the constant and recomputed from the constant in the test suite. This package's CI has no `spec` checkout, so a test that read the shape file would have to skip when the checkout is absent, and a check that can skip is not a check.
 - The serializer writes one repeated predicate per value for the multi-valued code fields, not an `rdf:List`. A collection is a single blank-node object, which fails a shape asserting `sh:datatype` on each value.
 - The deserializer groups repeated predicates back into a list and sorts it. rdflib yields the objects of a repeated predicate in an order that is neither document nor insertion order and varies between processes, so there is no original order to recover, and these properties are FHIR codings, which are a set.
@@ -34,7 +35,7 @@ Health v2.6 and clinical v1.14:
 - `interpretation` docstrings on `LabResult` and `VitalSign` named a value set that was wrong in both directions.
 
 ### Known gaps
-- The interpretation value set is exported and testable but is NOT enforced by `validator.py`. Two positive conformance fixtures carry `"interpretation": "elevated"`, which health v2.6 and clinical v1.14 both reject, so enforcing it here would fail this SDK against the ecosystem's own oracle. Enforcement waits on a conformance sync.
+- `validator.py` accepts one value the ratified shapes reject: `"elevated"`. This package's own `LabInterpretation` and `VitalInterpretation` named it through v1.5.0 and the conformance corpus still asserts it must be accepted (`vital-001` and `vital-004` are positive fixtures carrying it), so rejecting it would break data this SDK called valid and fail this SDK against the ecosystem's own oracle. Isolated in `_SDK_LEGACY_INTERPRETATIONS` with its removal trigger recorded; a record carrying it still fails SHACL validation.
 - The `content_hashed_uri()` sequence rule is defined by this SDK and is not yet in the shared cross-SDK vectors, so a URI minted from a multi-code field will not match one minted by another SDK until it is.
 - `Encounter` and `MedicationAdministration` carry the multi-valued field but remain serialize-only: neither is registered in the deserializer. Predates this release.
 

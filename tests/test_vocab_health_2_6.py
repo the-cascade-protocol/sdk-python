@@ -159,6 +159,88 @@ def test_type_aliases_expose_the_same_set() -> None:
 
 
 # ---------------------------------------------------------------------------
+# The validator enforces the value set
+# ---------------------------------------------------------------------------
+
+def _lab_dict(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "id": "urn:uuid:1ab00000-0000-4000-8000-000000000020",
+        "type": "LabResultRecord",
+        "testName": "Glucose",
+        "dataProvenance": "ClinicalGenerated",
+        "schemaVersion": "1.3",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_validator_rejects_an_out_of_vocabulary_interpretation() -> None:
+    from cascade_protocol import validate_dict
+
+    result = validate_dict(_lab_dict(interpretation="quite high"))
+    assert not result.is_valid
+    assert any("interpretation" in e for e in result.errors)
+
+
+@pytest.mark.parametrize("code", ["I", "unknown", "H", "POS", "normal"])
+def test_validator_accepts_every_ratified_value(code: str) -> None:
+    from cascade_protocol import validate_dict
+
+    assert validate_dict(_lab_dict(interpretation=code)).is_valid
+
+
+def test_validator_checks_clinical_interpretation_too() -> None:
+    """The two properties carry identical sh:in lists, so one check serves both.
+
+    Keyed on the property rather than the record type: a check that fired only
+    on lab results would let the same garbage through on a vital sign, and the
+    shape rejects it in both places.
+    """
+    from cascade_protocol import validate_dict
+
+    result = validate_dict(
+        {
+            "id": "urn:uuid:0f000000-0000-4000-8000-000000000020",
+            "type": "VitalSign",
+            "vitalType": "bloodPressureSystolic",
+            "value": 118,
+            "unit": "mmHg",
+            "interpretation": "quite high",
+            "dataProvenance": "ClinicalGenerated",
+            "schemaVersion": "1.3",
+        }
+    )
+    assert not result.is_valid
+
+
+def test_the_one_word_this_sdk_published_is_still_accepted() -> None:
+    """``"elevated"`` is accepted, and it is the only exception.
+
+    It is not in the ratified set and the shapes reject it, so this is a
+    deliberate, bounded departure: this package's own ``LabInterpretation``
+    and ``VitalInterpretation`` named it through v1.5.0, so records written
+    against those aliases carry it, and the conformance corpus still asserts
+    it must be accepted (``vital-001`` and ``vital-004`` are POSITIVE
+    fixtures carrying it).
+
+    Removal trigger: when those two fixtures move to a ratified code, delete
+    ``_SDK_LEGACY_INTERPRETATIONS`` and this test. Nothing else has to change.
+    """
+    from cascade_protocol import validate_dict
+    from cascade_protocol.validator.validator import _SDK_LEGACY_INTERPRETATIONS
+
+    assert _SDK_LEGACY_INTERPRETATIONS == frozenset({"elevated"})
+    assert "elevated" not in OBSERVATION_INTERPRETATION_VALUES
+    assert validate_dict(_lab_dict(interpretation="elevated")).is_valid
+
+
+def test_a_record_with_no_interpretation_is_unaffected() -> None:
+    from cascade_protocol import validate_dict
+
+    assert validate_dict(_lab_dict()).is_valid
+
+
+# ---------------------------------------------------------------------------
 # Multi-valued lab codes: serializer
 # ---------------------------------------------------------------------------
 

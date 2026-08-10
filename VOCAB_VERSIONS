@@ -112,9 +112,10 @@ pots=1.4
 #     check reads what is true (that nothing here is behind) rather than
 #     leaving a stale number that reads as unimplemented work.
 #
-# Deliberately NOT done: the interpretation value set is exported and
-#     testable but is NOT enforced by validator.py. Two positive conformance
-#     fixtures (vital-001, vital-004) carry "interpretation": "elevated",
-#     which health v2.6 and clinical v1.14 both reject, so enforcing it here
-#     would fail this SDK against the ecosystem's own oracle. Enforcement
-#     waits on a conformance sync.
+# The value set IS enforced by validator.py, keyed on the property so it
+#     covers health:interpretation and clinical:interpretation alike, with
+#     exactly one documented exception: "elevated". That word is not in the
+#     ratified set and the shapes reject it, but this SDK's own
+#     LabInterpretation and VitalInterpretation named it through v1.5.0, and
+#     conformance vital-001 / vital-004 are still POSITIVE fixtures carrying
+#     it. See _SDK_LEGACY_INTERPRETATIONS for the removal trigger.
