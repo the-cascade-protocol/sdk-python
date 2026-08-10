@@ -14,6 +14,14 @@ from __future__ import annotations
 
 import hashlib
 import uuid as _uuid
+from collections.abc import Sequence
+from typing import Union
+
+# A content field may now hold several codes: health v2.6 and clinical v1.14
+# made icd10Code, snomedCode and testCode 0..*, and a caller holding a
+# record's field passes whatever that field holds. Note that ``str`` is itself
+# a ``Sequence[str]``, so every check below tests for ``str`` first.
+CodeValue = Union[str, Sequence[str], None]
 
 
 def deterministic_uuid(input_str: str) -> str:
@@ -43,9 +51,35 @@ def deterministic_uuid(input_str: str) -> str:
     return f"{h[0:8]}-{h[8:12]}-5{h[13:16]}-{v}{h[18:20]}-{h[20:32]}"
 
 
+def _canonical_field_value(value: CodeValue) -> str | None:
+    """Reduce one content-field value to the string that enters the hash.
+
+    A scalar passes through untouched, so every URI minted before multi-valued
+    codes existed is minted identically now. A sequence is deduplicated,
+    sorted and comma-joined.
+
+    Sorting is not a formatting preference. These fields are FHIR codings,
+    which are a set: two exports of one record that list the same codings in a
+    different order are the same record, and an identity that depended on the
+    order would split it in two. Sorting also keeps the value out of reach of
+    iteration order: the set built here is consumed by ``sorted()`` and never
+    iterated directly, so no hash seed can reach the identifier.
+
+    A one-element sequence canonicalizes to exactly the scalar form, which is
+    what keeps already-written identities from moving when a field that held
+    one code becomes a list holding one code.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    codes = sorted({item.strip() for item in value if item is not None and item.strip()})
+    return ",".join(codes) if codes else None
+
+
 def content_hashed_uri(
     resource_type: str,
-    content_fields: dict[str, str | None],
+    content_fields: dict[str, CodeValue],
     fallback_id: str | None = None,
 ) -> str:
     """Generate a deterministic ``urn:uuid:`` URI from clinical content fields.
@@ -56,6 +90,10 @@ def content_hashed_uri(
     platform used.
 
     Algorithm:
+        0. Canonicalize each value: a string is used as-is; a sequence of
+           strings is deduplicated, sorted and joined with ``","``. A
+           one-element sequence therefore hashes identically to the bare
+           string, so multi-valued codes did not move any existing identity.
         1. Filter entries where the value is non-``None`` and non-empty after
            ``str.strip()``.
         2. Sort the remaining entries by key (ascending, lexicographic).
@@ -70,8 +108,16 @@ def content_hashed_uri(
     Args:
         resource_type: FHIR resource type string, e.g. ``"Patient"``,
             ``"Observation"``.
-        content_fields: Mapping of field names to their string values.  ``None``
-            and empty-string values are excluded from the hash.
+        content_fields: Mapping of field names to their values.  A value is
+            either a string or a sequence of strings (a multi-valued code).
+            ``None`` and empty values are excluded from the hash.
+
+            Cross-SDK note: the scalar behaviour is byte-identical to
+            cascade-cli's ``contentHashedUri()``. The sequence rule is an
+            extension this SDK defines, and the other SDKs do not implement it
+            yet, so a URI minted here from a MULTI-code field will not match
+            one minted there until the rule is written into the shared
+            conformance vectors.
         fallback_id: Optional opaque identifier used when *content_fields*
             produces no content.  Generates a deterministic URI from
             ``"{resource_type}:{fallback_id}"``.
@@ -84,9 +130,10 @@ def content_hashed_uri(
         >>> content_hashed_uri("Patient", {"dob": "1985-03-15", "given": "John"})
         'urn:uuid:...'
     """
+    canonicalized = ((k, _canonical_field_value(v)) for k, v in content_fields.items())
     entries = [
         (k, v)
-        for k, v in content_fields.items()
+        for k, v in canonicalized
         if v is not None and v.strip()
     ]
     entries.sort(key=lambda x: x[0])
@@ -148,14 +195,16 @@ def immunization_uri(
 
 
 def observation_uri(
-    loinc_code: str | None = None,
+    loinc_code: CodeValue = None,
     date: str | None = None,
     patient: str | None = None,
 ) -> str:
     """Return a deterministic URI for an Observation record.
 
     Args:
-        loinc_code: LOINC code string.
+        loinc_code: LOINC code, or a sequence of them. ``health:testCode``
+            is 0..* as of health v2.6, so an Observation can carry several
+            codings; they are deduplicated, sorted and joined before hashing.
         date: Observation date in ISO 8601 format.
         patient: Patient URI (``urn:uuid:…``).
 
@@ -169,16 +218,19 @@ def observation_uri(
 
 
 def condition_uri(
-    snomed_code: str | None = None,
-    icd10_code: str | None = None,
+    snomed_code: CodeValue = None,
+    icd10_code: CodeValue = None,
     onset_date: str | None = None,
     patient: str | None = None,
 ) -> str:
     """Return a deterministic URI for a Condition record.
 
     Args:
-        snomed_code: SNOMED CT code string.
-        icd10_code: ICD-10 code string.
+        snomed_code: SNOMED CT code, or a sequence of them. ``snomedCode``
+            and ``icd10Code`` are 0..* as of health v2.6 / clinical v1.14;
+            values are deduplicated, sorted and joined before hashing, so the
+            same condition coded in either order gets the same URI.
+        icd10_code: ICD-10 code, or a sequence of them.
         onset_date: Condition onset date in ISO 8601 format.
         patient: Patient URI (``urn:uuid:…``).
 

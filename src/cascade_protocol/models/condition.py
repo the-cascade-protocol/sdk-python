@@ -48,16 +48,25 @@ class Condition(CascadeRecord):
     Maps to ``health:onsetDate`` in Turtle serialization.
     """
 
-    icd10_code: str | None = None
+    icd10_code: list[str] | None = None
     """
-    ICD-10-CM code URI for this condition.
-    Maps to ``health:icd10Code`` in Turtle serialization as a URI reference.
+    ICD-10-CM code URIs for this condition, one per coding the source carried.
+
+    Multi-valued as of health v2.6 / clinical v1.14: FHIR R4
+    CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept), and dual-coded
+    problem-list entries are ordinary EHR output.
+
+    Maps to ``health:icd10Code`` as one URI-object triple per value.
     """
 
-    snomed_code: str | None = None
+    snomed_code: list[str] | None = None
     """
-    SNOMED CT code URI for this condition.
-    Maps to ``health:snomedCode`` in Turtle serialization as a URI reference.
+    SNOMED CT code URIs for this condition, one per coding the source carried.
+
+    Multi-valued as of health v2.6 / clinical v1.14; see :attr:`icd10_code`.
+
+    Maps to ``health:snomedCode`` as one URI-object triple per value.
     """
 
     condition_class: str | None = None

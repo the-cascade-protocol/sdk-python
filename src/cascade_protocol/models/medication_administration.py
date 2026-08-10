@@ -61,10 +61,14 @@ class MedicationAdministration(CascadeRecord):
     Maps to ``clinical:administrationStatus`` in Turtle serialization.
     """
 
-    snomed_code: str | None = None
+    snomed_code: list[str] | None = None
     """
-    SNOMED CT code URI for the medication concept.
-    Maps to ``health:snomedCode`` in Turtle serialization.
+    SNOMED CT code URIs for the medication concept, one per coding.
+
+    Multi-valued as of clinical v1.14: FHIR R4 CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept).
+
+    Maps to ``health:snomedCode`` as one URI-object triple per value.
     """
 
 

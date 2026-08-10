@@ -2,17 +2,17 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.4
-health=2.5
-clinical=1.13
-coverage=1.3
+core=3.5
+health=2.6
+clinical=1.14
+coverage=1.4
 # coverage=1.3: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
 # core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
 # core=3.1-3.3: AdvisoryApplicationActivity, AIGenerationActivity, GenerationTrigger, ProxyAgent, AIAsserted provenance leaf added
 # clinical=1.8: ClinicalSocialHistoryRecord dataclass added (EHR-extracted, 42 CFR Part 2)
 # clinical=1.9: cascade:AIExtracted permitted as a dataProvenance value on clinical records
 # health=2.4: SocialHistoryRecord dataclass added (consumer-reported lifestyle data)
-checkup=3.2
+checkup=3.3
 pots=1.4
 # clinical=1.8: Medication RDF type and predicates migrated from health: to clinical: namespace
 #
@@ -65,3 +65,56 @@ pots=1.4
 #     clinical:hasLabResult's v1.10 range correction needs no change here: this
 #     SDK has no clinical:LaboratoryReport model, so the edge is unimplemented
 #     rather than wrong.
+#
+# 2026-08-10 sync: core 3.5, health 2.6, clinical 1.14, coverage 1.4,
+#     checkup 3.3. The previous pass deliberately left these rows behind
+#     because the row would have been a claim the models could not back.
+#
+# core=3.5: cascade:sourceIdentity, the ORIGIN axis. Registered in
+#     PROPERTY_PREDICATES (snake + camel) and carried on CascadeRecord, so
+#     every record type has it: rdfs:domain is owl:Thing, and a property on a
+#     subset of the models leaves the rest of the pod unreconcilable. The
+#     value is a scheme-prefixed token (org: / ns: / transport:) and is
+#     carried, not derived and NOT validated. The slug normalization is
+#     defined in core.ttl and belongs to the producers that mint the value.
+#     Deliberately kept distinct from cascade:sourceSystem (the INGESTION
+#     batch, still unregistered here) and clinical:sourceEHR (a display
+#     label). No other core v3.5 term needed model work.
+# health=2.6: two changes.
+#     health:interpretation is bound to the HL7 v3 ObservationInterpretation
+#     code system (49 selectable codes, version 3.0.0) plus the
+#     data-absent-reason code "unknown" plus the ten retained v2.5 words: 60
+#     values, exported as OBSERVATION_INTERPRETATION_CODES /
+#     OBSERVATION_INTERPRETATION_VALUES and as the ObservationInterpretation
+#     type alias. LabInterpretation and VitalInterpretation now alias it; both
+#     previously named "elevated", which no Cascade shape has ever accepted,
+#     and omitted "high", which every one of them has. The list is pinned by
+#     SHA-256 rather than by reading the shapes, because this repo's CI has no
+#     spec checkout and a check that can skip is not a check.
+#     health:labCategory, health:testCode, health:icd10Code and
+#     health:snomedCode lost sh:maxCount 1. The four fields are list-typed on
+#     LabResult and Condition; the serializer writes one repeated predicate
+#     per value (NOT an rdf:List, which would be a single blank-node object
+#     and fail the shapes' sh:datatype), and the deserializer groups repeated
+#     predicates back into a sorted list.
+# clinical=1.14: clinical:interpretation carries the same 60 values as
+#     health:interpretation, so this SDK holds one set rather than two that
+#     would have to be kept in step. clinical:snomedCode is multi-valued in
+#     four shapes plus the new Encounter shape, so snomed_code is list-typed
+#     on VitalSign, Procedure, Encounter and MedicationAdministration as well.
+#     Encounter and MedicationAdministration remain serialize-only: neither is
+#     registered in the deserializer, which predates this change.
+#     The rest of v1.14 needs no code here. The widened clinical:cptCode
+#     pattern, the date properties that now accept xsd:date, and the new
+#     Encounter shape are all constraints this SDK never enforced, so there
+#     was nothing rejecting them.
+# coverage=1.4, checkup=3.3: no new terms this SDK models. Rowed so the drift
+#     check reads what is true (that nothing here is behind) rather than
+#     leaving a stale number that reads as unimplemented work.
+#
+# Deliberately NOT done: the interpretation value set is exported and
+#     testable but is NOT enforced by validator.py. Two positive conformance
+#     fixtures (vital-001, vital-004) carry "interpretation": "elevated",
+#     which health v2.6 and clinical v1.14 both reject, so enforcing it here
+#     would fail this SDK against the ecosystem's own oracle. Enforcement
+#     waits on a conformance sync.

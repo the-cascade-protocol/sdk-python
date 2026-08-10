@@ -167,7 +167,25 @@ _ARRAY_FIELDS = {
     "drug_codes", "affects_vital_signs", "monitored_vital_signs",
     # -- clinical v1.10-1.12 graph edges --
     "indication_reference", "parsed_indication_reference", "linked_condition",
+    # -- health v2.6 / clinical v1.14 multi-valued codes --
+    # These lost sh:maxCount 1: FHIR R4 CodeableConcept.coding and
+    # Observation.category are both 0..*. Reading only the first object of a
+    # repeated predicate silently discarded every coding after the first,
+    # which is the failure that is invisible in the output rather than loud.
+    "icd10_code", "snomed_code", "test_code", "lab_category",
 }
+
+# Multi-valued fields whose parsed values are SORTED before they reach the
+# model. rdflib's store yields the objects of a repeated predicate in neither
+# document nor insertion order, and the order varies between processes, so
+# there is no original order to recover, only an arbitrary one to propagate.
+# The affected properties are FHIR codings and categories, which are sets:
+# sorting loses nothing and makes two parses of one document compare equal.
+#
+# The v1.10-1.12 graph edges above are deliberately NOT in this set. Their
+# order is equally arbitrary, but they have shipped unsorted since v1.5.0 and
+# changing them is not part of this vocabulary sync.
+_SORTED_ARRAY_FIELDS = {"icd10_code", "snomed_code", "test_code", "lab_category"}
 
 # Fields whose object is an IRI in the health: namespace carrying a bare local
 # name (health:sleepQuality health:Good). Parsed back to the local name.
@@ -348,7 +366,7 @@ def _parse_with_rdflib(turtle: str, graph: Any = None) -> list[dict[str, Any]]:
                             values.append(str(obj))
                     else:
                         values.append(str(obj))
-                record[py_key] = values
+                record[py_key] = sorted(values) if py_key in _SORTED_ARRAY_FIELDS else values
                 continue
 
             # Single-value fields: use first object

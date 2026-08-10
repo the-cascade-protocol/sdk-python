@@ -72,10 +72,16 @@ class Encounter(CascadeRecord):
     Maps to ``clinical:facilityName`` in Turtle serialization.
     """
 
-    snomed_code: str | None = None
+    snomed_code: list[str] | None = None
     """
-    SNOMED CT code URI for the encounter type.
-    Maps to ``health:snomedCode`` in Turtle serialization.
+    SNOMED CT code URIs for the encounter type, one per coding.
+
+    Multi-valued as of clinical v1.14, which also gave ``clinical:Encounter``
+    its first SHACL shape; that shape declares ``clinical:snomedCode``
+    multi-valued from the start. FHIR R4 CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept).
+
+    Maps to ``health:snomedCode`` as one URI-object triple per value.
     """
 
     @classmethod

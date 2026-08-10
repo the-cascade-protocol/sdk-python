@@ -595,6 +595,10 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # -- Shared predicates --
     "notes": "health:notes",
     "source_record_id": "health:sourceRecordId",
+    # core v3.5, the ORIGIN axis. Distinct from cascade:sourceSystem (the
+    # INGESTION batch) and from clinical:sourceEHR (a display label): this is
+    # the only one of the three that may be used as a reconciliation key.
+    "source_identity": "cascade:sourceIdentity",
 
     # -- Activity snapshot predicates --
     "date": "health:date",
@@ -917,6 +921,7 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "onsetAge": "health:onsetAge",
     "notes": "health:notes",
     "sourceRecordId": "health:sourceRecordId",
+    "sourceIdentity": "cascade:sourceIdentity",
     "date": "health:date",
     "steps": "health:steps",
     "distance": "health:distance",

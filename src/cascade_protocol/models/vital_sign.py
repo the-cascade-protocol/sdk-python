@@ -66,10 +66,14 @@ class VitalSign(CascadeRecord):
     Maps to ``clinical:loincCode`` in Turtle serialization as a URI reference.
     """
 
-    snomed_code: str | None = None
+    snomed_code: list[str] | None = None
     """
-    SNOMED CT code URI for this vital sign type.
-    Maps to ``clinical:snomedCode`` in Turtle serialization as a URI reference.
+    SNOMED CT code URIs for this vital sign type, one per coding.
+
+    Multi-valued as of clinical v1.14: FHIR R4 CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept).
+
+    Maps to ``clinical:snomedCode`` as one URI-object triple per value.
     Note: VitalSign uses the clinical: namespace for snomedCode.
     """
 
@@ -87,7 +91,20 @@ class VitalSign(CascadeRecord):
 
     interpretation: str | None = None
     """
-    Clinical interpretation of the vital sign value (normal, elevated, low, critical).
+    Clinical interpretation of the value, from the HL7 v3
+    ObservationInterpretation code system (e.g. ``"H"``, ``"HH"``, ``"N"``),
+    the data-absent-reason code ``"unknown"``, or one of the ten words retained
+    from clinical v1.13. Single-valued: clinical v1.14 widened the value set
+    but kept ``sh:maxCount 1``.
+
+    The 60 accepted values are
+    :data:`~cascade_protocol.models.common.OBSERVATION_INTERPRETATION_CODES`;
+    :data:`~cascade_protocol.models.common.VitalInterpretation` is the matching
+    type alias. ``clinical:interpretation`` and ``health:interpretation`` carry
+    identical value sets. Note that ``"elevated"``, which this SDK named
+    through v1.5.0, is NOT among them and never was accepted by any Cascade
+    shape.
+
     Maps to ``clinical:interpretation`` in Turtle serialization.
     Note: VitalSign uses the clinical: namespace for interpretation.
     """
