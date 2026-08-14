@@ -47,10 +47,15 @@ class Procedure(CascadeRecord):
     Maps to ``health:status`` in Turtle serialization.
     """
 
-    snomed_code: str | None = None
+    snomed_code: list[str] | None = None
     """
-    SNOMED CT code URI for this procedure.
-    Maps to ``health:snomedCode`` in Turtle serialization as a URI reference.
+    SNOMED CT code URIs for this procedure, one per coding.
+
+    Multi-valued as of health v2.6 / clinical v1.14: FHIR R4
+    CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept).
+
+    Maps to ``health:snomedCode`` as one URI-object triple per value.
     """
 
     performer: str | None = None

@@ -5,6 +5,40 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-10
+
+Vocabulary sync: core v3.5, health v2.6, clinical v1.14, coverage v1.4, checkup v3.3.
+
+Major, not minor: four record fields change type, and two exported type aliases change membership. Both are breaking for a published package, and the previous sync deliberately did not row these vocabularies because doing so without these model changes would have been a claim the models could not back.
+
+### Changed (BREAKING)
+
+- `LabResult.test_code`, `LabResult.lab_category`, `Condition.icd10_code`, `Condition.snomed_code`, `VitalSign.snomed_code`, `Procedure.snomed_code`, `Encounter.snomed_code` and `MedicationAdministration.snomed_code` are now `list[str] | None` instead of `str | None`. FHIR R4 `CodeableConcept.coding` is 0..* and `Observation.category` is 0..*, and health v2.6 / clinical v1.14 dropped `sh:maxCount 1` accordingly: a record that preserved every coding the source sent was being rejected for preserving it. `None` still means the property is absent, which is what a record that never carried the field reads back as.
+- `LabInterpretation` and `VitalInterpretation` are now aliases of the new `ObservationInterpretation`, which is the 60-value set health v2.6 and clinical v1.14 accept. Both previously named `"elevated"`, which no Cascade shape has ever accepted, and omitted `"high"`, which every one of them has. Code annotated with either alias and assigning `"elevated"` will now fail type checking, correctly.
+
+Migration: pass a list where you passed a string (`snomed_code=["http://snomed.info/sct/44054006"]`). A scalar is still serialized rather than dropped, so existing calls keep producing correct Turtle, but they no longer type-check. `parse()` always returns a list for these fields.
+
+### Added
+
+Core v3.5:
+- `cascade:sourceIdentity` registered in `PROPERTY_PREDICATES` (snake and camel) and carried on `CascadeRecord`, so every record type has it. This is the ORIGIN axis: the canonical, transport-independent identity of the organization a record came from, as a scheme-prefixed `org:` / `ns:` / `transport:` token. It is deliberately distinct from `cascade:sourceSystem` (the ingestion batch) and `clinical:sourceEHR` (a display label), and it is the only one of the three usable as a reconciliation key. Carried and not validated: the slug normalization is defined in `core.ttl` and belongs to the producers that mint the value.
+
+Health v2.6 and clinical v1.14:
+- `ObservationInterpretation` type alias plus `OBSERVATION_INTERPRETATION_CODES` (ordered tuple) and `OBSERVATION_INTERPRETATION_VALUES` (frozenset), exported from the package root. The 49 selectable codes of the HL7 v3 ObservationInterpretation code system (version 3.0.0, in the code system's own order), plus the data-absent-reason code `"unknown"`, plus the ten retained legacy words. Laboratories report susceptibility (`S`/`I`/`R`), detection (`POS`/`NEG`/`DET`/`ND`/`IND`), reactivity (`RR`/`WR`/`NR`) and change (`B`/`D`/`U`/`W`) results, all conformant FHIR, and none of them had any representation here.
+- The value set is enforced by `validate()` / `validate_dict()`, keyed on the property so it covers `health:interpretation` and `clinical:interpretation` alike. An out-of-vocabulary value was previously accepted silently.
+- The list is pinned by a SHA-256 checksum recorded next to the constant and recomputed from the constant in the test suite. This package's CI has no `spec` checkout, so a test that read the shape file would have to skip when the checkout is absent, and a check that can skip is not a check.
+- The serializer writes one repeated predicate per value for the multi-valued code fields, not an `rdf:List`. A collection is a single blank-node object, which fails a shape asserting `sh:datatype` on each value.
+- The deserializer groups repeated predicates back into a list and sorts it. rdflib yields the objects of a repeated predicate in an order that is neither document nor insertion order and varies between processes, so there is no original order to recover, and these properties are FHIR codings, which are a set.
+- `content_hashed_uri()` accepts a sequence for any content field, deduplicating, sorting and comma-joining it. A one-element sequence hashes identically to the bare string, so no identity already written moves. `condition_uri()` and `observation_uri()` take sequences on their coded parameters.
+
+### Fixed
+- `interpretation` docstrings on `LabResult` and `VitalSign` named a value set that was wrong in both directions.
+
+### Known gaps
+- `validator.py` accepts one value the ratified shapes reject: `"elevated"`. This package's own `LabInterpretation` and `VitalInterpretation` named it through v1.5.0 and the conformance corpus still asserts it must be accepted (`vital-001` and `vital-004` are positive fixtures carrying it), so rejecting it would break data this SDK called valid and fail this SDK against the ecosystem's own oracle. Isolated in `_SDK_LEGACY_INTERPRETATIONS` with its removal trigger recorded; a record carrying it still fails SHACL validation.
+- The `content_hashed_uri()` sequence rule is defined by this SDK and is not yet in the shared cross-SDK vectors, so a URI minted from a multi-code field will not match one minted by another SDK until it is.
+- `Encounter` and `MedicationAdministration` carry the multi-valued field but remain serialize-only: neither is registered in the deserializer. Predates this release.
+
 ## [1.5.0] - 2026-08-04
 
 ### Added

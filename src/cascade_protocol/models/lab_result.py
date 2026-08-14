@@ -55,7 +55,18 @@ class LabResult(CascadeRecord):
 
     interpretation: str | None = None
     """
-    Clinical interpretation of the result (normal, abnormal, critical, elevated, low).
+    Clinical interpretation of the result, from the HL7 v3
+    ObservationInterpretation code system (e.g. ``"H"``, ``"LL"``, ``"POS"``,
+    ``"S"``), the data-absent-reason code ``"unknown"``, or one of the ten
+    words retained from health v2.5. Single-valued: health v2.6 widened the
+    value set but kept ``sh:maxCount 1``.
+
+    The 60 accepted values are
+    :data:`~cascade_protocol.models.common.OBSERVATION_INTERPRETATION_CODES`;
+    :data:`~cascade_protocol.models.common.LabInterpretation` is the matching
+    type alias. Note that ``"elevated"``, which this SDK named through v1.5.0,
+    is NOT among them and never was accepted by any Cascade shape.
+
     Maps to ``health:interpretation`` in Turtle serialization.
     """
 
@@ -65,16 +76,31 @@ class LabResult(CascadeRecord):
     Maps to ``health:performedDate`` in Turtle serialization.
     """
 
-    test_code: str | None = None
+    test_code: list[str] | None = None
     """
-    LOINC code URI for this test.
-    Maps to ``health:testCode`` in Turtle serialization as a URI reference.
+    LOINC code URIs for this test, one per coding the source carried.
+
+    Multi-valued as of health v2.6: FHIR R4 CodeableConcept.coding is 0..*
+    (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept) and an
+    Observation.code routinely carries more than one LOINC coding for the same
+    test. Bare codes are expanded against LOINC on serialization.
+
+    ``None`` means the property is absent, which is not the same as a record
+    that carries an empty list; both serialize to no triples, and ``None`` is
+    what a record that never had the field reads back as.
+
+    Maps to ``health:testCode`` as one URI-object triple per value.
     """
 
-    lab_category: str | None = None
+    lab_category: list[str] | None = None
     """
-    Laboratory category (e.g., ``"Chemistry"``, ``"Hematology"``).
-    Maps to ``health:labCategory`` in Turtle serialization.
+    Laboratory categories (e.g., ``["Chemistry"]``, ``["Chemistry", "Point of Care"]``).
+
+    Multi-valued as of health v2.6: FHIR R4 Observation.category is 0..*
+    (https://hl7.org/fhir/R4/observation-definitions.html#Observation.category)
+    and real exports categorise one result several ways at once.
+
+    Maps to ``health:labCategory`` as one string-literal triple per value.
     """
 
     specimen_type: str | None = None

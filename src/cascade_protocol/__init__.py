@@ -83,6 +83,9 @@ from cascade_protocol.models import (
     AllergySeverity,
     AllergyCategory,
     LabInterpretation,
+    ObservationInterpretation,
+    OBSERVATION_INTERPRETATION_CODES,
+    OBSERVATION_INTERPRETATION_VALUES,
     MedicationClinicalIntent,
     CourseOfTherapyType,
     PrescriptionCategory,
@@ -154,7 +157,7 @@ from cascade_protocol.vocabularies.namespaces import (
     WELLNESS_HISTORY_PROPERTIES,
 )
 
-__version__ = "1.5.0"
+__version__ = "2.0.0"
 __author__ = "Cascade Agentic Labs"
 __license__ = "Apache-2.0"
 
@@ -218,6 +221,9 @@ __all__ = [
     "AllergySeverity",
     "AllergyCategory",
     "LabInterpretation",
+    "ObservationInterpretation",
+    "OBSERVATION_INTERPRETATION_CODES",
+    "OBSERVATION_INTERPRETATION_VALUES",
     "MedicationClinicalIntent",
     "CourseOfTherapyType",
     "PrescriptionCategory",

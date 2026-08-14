@@ -123,6 +123,41 @@ _URI_FIELDS_CAMEL: set[str] = {
     "hasEncounter",
 }
 
+# Coded fields that are 0..* as of health v2.6 / clinical v1.14, carrying an
+# IRI object per value. FHIR R4 CodeableConcept.coding is 0..*
+# (https://hl7.org/fhir/R4/datatypes.html#CodeableConcept), so one record can
+# state the same concept in several code systems, or the same code system
+# twice.
+#
+# Kept separate from _ARRAY_FIELDS below because the two shapes of "array"
+# serialize differently and the difference is not cosmetic: _ARRAY_FIELDS
+# writes an rdf:List when the members are not IRIs, and a collection node is a
+# single blank-node object. A property whose shape asserts sh:datatype on each
+# value would fail against one. These write REPEATED PREDICATES, which is what
+# a 0..* property with no ordering means in RDF.
+#
+# A scalar is still accepted on every one of these keys. The camelCase entry
+# point takes external JSON (conformance fixture inputs, TypeScript-SDK
+# output), all of which predates the cardinality change, and widening the model
+# must not make that input unserializable.
+_MULTI_VALUE_URI_FIELDS_SNAKE: set[str] = {
+    "icd10_code",
+    "snomed_code",
+    "test_code",
+}
+
+_MULTI_VALUE_URI_FIELDS_CAMEL: set[str] = {
+    "icd10Code",
+    "snomedCode",
+    "testCode",
+}
+
+# The same, for fields whose values are plain string literals rather than IRIs.
+# FHIR R4 Observation.category is 0..*
+# (https://hl7.org/fhir/R4/observation-definitions.html#Observation.category).
+_MULTI_VALUE_LITERAL_FIELDS_SNAKE: set[str] = {"lab_category"}
+_MULTI_VALUE_LITERAL_FIELDS_CAMEL: set[str] = {"labCategory"}
+
 # Fields whose values are arrays and should be serialized as repeated predicates
 # (for URI arrays) or RDF lists (for string arrays).
 _ARRAY_FIELDS_SNAKE: set[str] = {
@@ -319,6 +354,9 @@ def _collect_prefixes_from_dict(
     pred_map = PROPERTY_PREDICATES_CAMEL if camel else PROPERTY_PREDICATES
     uri_fields = _URI_FIELDS_CAMEL if camel else _URI_FIELDS_SNAKE
     array_fields = _ARRAY_FIELDS_CAMEL if camel else _ARRAY_FIELDS_SNAKE
+    multi_uri_fields = (
+        _MULTI_VALUE_URI_FIELDS_CAMEL if camel else _MULTI_VALUE_URI_FIELDS_SNAKE
+    )
     overrides = _TYPE_PREDICATE_OVERRIDES.get(f"_camel_{record_type}" if camel else record_type, {})
 
     for key, value in record_dict.items():
@@ -333,6 +371,15 @@ def _collect_prefixes_from_dict(
 
         if isinstance(value, str) and key in uri_fields:
             _add_prefix_for_uri(_expand_code_uri(key, value), prefixes)
+
+        # A multi-valued coded field declares the same prefixes as its scalar
+        # form, once per value. Missing this would emit the values correctly
+        # and lose the code-system prefix declaration for a record that
+        # carries only list-shaped codes.
+        if isinstance(value, list) and key in multi_uri_fields:
+            for item in value:
+                if isinstance(item, str):
+                    _add_prefix_for_uri(_expand_code_uri(key, item), prefixes)
 
         if isinstance(value, list) and key in array_fields:
             for item in value:
@@ -400,6 +447,12 @@ def _serialize_dict(
     pred_map = PROPERTY_PREDICATES_CAMEL if camel else PROPERTY_PREDICATES
     uri_fields = _URI_FIELDS_CAMEL if camel else _URI_FIELDS_SNAKE
     array_fields = _ARRAY_FIELDS_CAMEL if camel else _ARRAY_FIELDS_SNAKE
+    multi_uri_fields = (
+        _MULTI_VALUE_URI_FIELDS_CAMEL if camel else _MULTI_VALUE_URI_FIELDS_SNAKE
+    )
+    multi_literal_fields = (
+        _MULTI_VALUE_LITERAL_FIELDS_CAMEL if camel else _MULTI_VALUE_LITERAL_FIELDS_SNAKE
+    )
     integer_typed = _INTEGER_TYPED_FIELDS_CAMEL if camel else _INTEGER_TYPED_FIELDS_SNAKE
     decimal_typed = _DECIMAL_TYPED_FIELDS_CAMEL if camel else _DECIMAL_TYPED_FIELDS_SNAKE
     type_datetime = _TYPE_DATETIME_FIELDS.get(record_type, set())
@@ -470,6 +523,23 @@ def _serialize_dict(
                 triple_lines.append(f"    {pred} {value}")
             else:
                 triple_lines.append(f"    {pred} {int(value)}")
+            return
+
+        # Multi-valued coded fields (health v2.6 / clinical v1.14). One triple
+        # per value, in the order the caller supplied: the RDF is a set, so no
+        # order is asserted, and re-ordering the caller's list would discard
+        # the only ordering information there is without gaining anything.
+        # Checked before the scalar branches so that the scalar spelling of
+        # the same key keeps working underneath.
+        if key in multi_uri_fields and isinstance(value, list):
+            for item in value:
+                if isinstance(item, str):
+                    triple_lines.append(f"    {pred} <{_expand_code_uri(key, item)}>")
+            return
+
+        if key in multi_literal_fields and isinstance(value, list):
+            for item in value:
+                triple_lines.append(f'    {pred} "{_escape_turtle_string(str(item))}"')
             return
 
         # URI fields

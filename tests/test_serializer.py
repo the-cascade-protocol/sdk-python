@@ -153,8 +153,8 @@ class TestConditionSerialization:
             status="active",
             data_provenance="ClinicalGenerated",
             schema_version="1.3",
-            icd10_code="http://hl7.org/fhir/sid/icd-10-cm/I10",
-            snomed_code="http://snomed.info/sct/38341003",
+            icd10_code=["http://hl7.org/fhir/sid/icd-10-cm/I10"],
+            snomed_code=["http://snomed.info/sct/38341003"],
         )
         turtle = serialize(cond)
         assert "health:icd10Code" in turtle
@@ -208,7 +208,7 @@ class TestLabResultSerialization:
             test_name="Hemoglobin A1c",
             data_provenance="ClinicalGenerated",
             schema_version="1.3",
-            test_code="http://loinc.org/rdf#4548-4",
+            test_code=["http://loinc.org/rdf#4548-4"],
             result_value="7.2",
             result_unit="%",
         )
@@ -228,7 +228,7 @@ class TestVitalSignSerialization:
             data_provenance="ClinicalGenerated",
             schema_version="1.3",
             effective_date="2026-01-20T09:15:00Z",
-            interpretation="elevated",
+            interpretation="H",
         )
         turtle = serialize(vital)
         assert "a clinical:VitalSign" in turtle
@@ -236,7 +236,7 @@ class TestVitalSignSerialization:
         assert '"bloodPressureSystolic"' in turtle
         assert "clinical:value 134" in turtle
         assert '"mmHg"' in turtle
-        assert '"elevated"' in turtle
+        assert '"H"' in turtle
         assert "^^xsd:dateTime" in turtle
 
     def test_vital_sign_snomed_uses_clinical_namespace(self):
@@ -247,7 +247,7 @@ class TestVitalSignSerialization:
             unit="mmHg",
             data_provenance="ClinicalGenerated",
             schema_version="1.3",
-            snomed_code="http://snomed.info/sct/271649006",
+            snomed_code=["http://snomed.info/sct/271649006"],
         )
         turtle = serialize(vital)
         # VitalSign uses clinical:snomedCode, not health:snomedCode
