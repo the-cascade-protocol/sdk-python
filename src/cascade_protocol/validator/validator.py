@@ -39,6 +39,12 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "VitalSign": ["id", "type", "vitalType", "value", "unit", "dataProvenance", "schemaVersion"],
     "ImmunizationRecord": ["id", "type", "vaccineName", "dataProvenance", "schemaVersion"],
     "ProcedureRecord": ["id", "type", "procedureName", "dataProvenance", "schemaVersion"],
+    # clinical v1.15: clinical:ProcedureShape requires a name through a
+    # node-level sh:or over clinical:procedureName and health:procedureName,
+    # not a plain minCount, so the name is enforced separately below rather
+    # than listed here. Listing either spelling would reject a record that
+    # carries the other one, which is the defect v1.15 corrects.
+    "Procedure": ["id", "type", "dataProvenance", "schemaVersion"],
     "FamilyHistoryRecord": ["id", "type", "relationship", "conditionName", "dataProvenance", "schemaVersion"],
     "CoverageRecord": ["id", "type", "providerName", "dataProvenance", "schemaVersion"],
     "InsurancePlan": ["id", "type", "providerName", "dataProvenance", "schemaVersion"],
@@ -89,6 +95,8 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "VitalSign": ["id", "type", "vital_type", "value", "unit", "data_provenance", "schema_version"],
     "ImmunizationRecord": ["id", "type", "vaccine_name", "data_provenance", "schema_version"],
     "ProcedureRecord": ["id", "type", "procedure_name", "data_provenance", "schema_version"],
+    # See the camelCase table for why the name is not listed here.
+    "Procedure": ["id", "type", "data_provenance", "schema_version"],
     "FamilyHistoryRecord": ["id", "type", "relationship", "condition_name", "data_provenance", "schema_version"],
     "CoverageRecord": ["id", "type", "provider_name", "data_provenance", "schema_version"],
     "InsurancePlan": ["id", "type", "provider_name", "data_provenance", "schema_version"],
@@ -171,27 +179,47 @@ _VALID_SLEEP_QUALITY = frozenset({"Excellent", "Good", "Fair", "Poor"})
 # cascade:InteractionScenarioShape sh:in.
 _VALID_INTERACTION_SEVERITY = frozenset({"low", "moderate", "high", "critical"})
 
-# health:interpretation and clinical:interpretation (health v2.6 / clinical
-# v1.14). The two properties carry identical sh:in lists, so the check is keyed
-# on the PROPERTY and serves lab results and vital signs alike; a check that
-# fired only on one record type would let the same out-of-vocabulary value
-# through on the other, which the shapes reject in both places.
+# health:interpretation and clinical:interpretation (health v2.7 / clinical
+# v1.15). The two properties carry identical sh:in lists, so MEMBERSHIP is
+# keyed on the PROPERTY and serves lab results and vital signs alike; a check
+# that fired only on one record type would let the same out-of-vocabulary value
+# through on the other.
+#
+# SEVERITY, however, is keyed on the record type, because the shapes differ:
+# the lab shapes bind the set at sh:Violation, and clinical:VitalSignShape
+# binds the same set at sh:Warning (clinical v1.15). A vital carrying a value
+# outside the set is REPORTED, not rejected, and is raised to a violation in a
+# later clinical version only after a release in which the warning is
+# observably absent from conforming output.
 _VALID_INTERPRETATIONS = OBSERVATION_INTERPRETATION_VALUES
 
-# One value accepted on top of the ratified set, and the only one.
-#
-# "elevated" is NOT in the HL7 v3 ObservationInterpretation code system and no
-# Cascade shape has ever accepted it, so a record carrying it fails
-# `cascade validate`. It is accepted HERE because this package put it into the
-# world: LabInterpretation and VitalInterpretation both named it through
-# v1.5.0, records were written against those aliases, and the conformance
-# corpus still asserts it must be accepted (vital-001 and vital-004 are
-# POSITIVE fixtures carrying it). Rejecting it would fail this SDK against the
-# ecosystem's own oracle while breaking data this SDK told callers was valid.
-#
-# REMOVAL TRIGGER: when those two fixtures move to a ratified code, delete this
-# set and the branch that reads it. Nothing else depends on it.
-_SDK_LEGACY_INTERPRETATIONS = frozenset({"elevated"})
+# The 15 codes of http://terminology.hl7.org/CodeSystem/data-absent-reason,
+# which cascade:dataAbsentReason is bound to (core v3.6). A raw HL7 v3
+# NullFlavor code (UNK, NAV, NASK, ASKU, ...) is NOT accepted: an importer maps
+# nullFlavor on the way in, using the table stated on the property in core.ttl.
+# Accepting both spellings would give every absence two encodings and put the
+# burden of knowing both on every reader.
+_VALID_DATA_ABSENT_REASONS = frozenset({
+    "unknown",
+    "asked-unknown",
+    "temp-unknown",
+    "not-asked",
+    "asked-declined",
+    "masked",
+    "not-applicable",
+    "unsupported",
+    "as-text",
+    "error",
+    "not-a-number",
+    "negative-infinity",
+    "positive-infinity",
+    "not-performed",
+    "not-permitted",
+})
+
+# Record types whose interpretation binding is sh:Warning rather than
+# sh:Violation. Only vital signs: clinical:VitalSignShape carries the ratchet.
+_WARNING_ONLY_INTERPRETATION_TYPES = frozenset({"VitalSign"})
 
 # Numeric bounds asserted by the health v2.5 daily-snapshot shapes and the
 # core v3.4 record-summary shape. (field, record types, lower, upper).
@@ -258,20 +286,23 @@ class ValidationResult:
 # Structural validation
 # ---------------------------------------------------------------------------
 
-def _validate_dict_structural(data: dict[str, Any]) -> list[str]:
+def _validate_dict_structural(data: dict[str, Any]) -> tuple[list[str], list[str]]:
     """
     Validate a record dict (camelCase or snake_case) for required fields.
 
-    Returns a list of error messages; empty list means valid.
+    Returns ``(errors, warnings)``; an empty error list means valid. Warnings
+    mirror ``sh:Warning`` shape results, which are reported without
+    withholding conformance.
     """
     import re
 
     errors: list[str] = []
+    warnings: list[str] = []
     record_type = data.get("type") or data.get("type")
 
     if not record_type:
         errors.append("Missing required field: 'type'")
-        return errors
+        return errors, warnings
 
     # Try camelCase required fields first, then snake_case
     required_camel = _REQUIRED_FIELDS_CAMEL.get(str(record_type))
@@ -279,7 +310,7 @@ def _validate_dict_structural(data: dict[str, Any]) -> list[str]:
 
     if required_camel is None and required_snake is None:
         errors.append(f"Unknown record type: {record_type!r}")
-        return errors
+        return errors, warnings
 
     # Determine which field convention is used
     if required_camel:
@@ -324,8 +355,10 @@ def _validate_dict_structural(data: dict[str, Any]) -> list[str]:
                 f"Must be one of: {sorted(_VALID_VITAL_TYPES)}"
             )
 
-    errors.extend(_validate_enums_and_bounds(str(record_type), data))
-    return errors
+    enum_errors, enum_warnings = _validate_enums_and_bounds(str(record_type), data)
+    errors.extend(enum_errors)
+    warnings.extend(enum_warnings)
+    return errors, warnings
 
 
 def _get_either(data: dict[str, Any], camel: str, snake: str) -> Any:
@@ -335,7 +368,9 @@ def _get_either(data: dict[str, Any], camel: str, snake: str) -> Any:
     return data.get(snake)
 
 
-def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[str]:
+def _validate_enums_and_bounds(
+    record_type: str, data: dict[str, Any]
+) -> tuple[list[str], list[str]]:
     """
     Enumeration and numeric-range checks lifted from the SHACL shapes.
 
@@ -343,8 +378,13 @@ def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[s
     on a value that IS present, which is the class of defect a required-field
     check cannot see: a record with every field populated and one of them
     out of range validates clean without them.
+
+    Returns ``(errors, warnings)``. A warning does NOT make the record
+    invalid: it mirrors an ``sh:Warning`` result, which a conforming SHACL
+    processor reports without withholding conformance.
     """
     errors: list[str] = []
+    warnings: list[str] = []
 
     # Keyed on the PROPERTY, not on the record type: health: and clinical:
     # social history records are both spelled "SocialHistoryRecord" in the
@@ -357,16 +397,62 @@ def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[s
             f"Must be one of: {sorted(_VALID_SOCIAL_HISTORY_CATEGORIES)}"
         )
 
-    # Keyed on the property, for the reason given at _VALID_INTERPRETATIONS.
+    # Membership keyed on the property, severity keyed on the record type, for
+    # the reason given at _VALID_INTERPRETATIONS.
     interpretation = data.get("interpretation")
     if interpretation and str(interpretation) not in _VALID_INTERPRETATIONS:
-        if str(interpretation) not in _SDK_LEGACY_INTERPRETATIONS:
+        message = (
+            f"interpretation {interpretation!r} is outside the ratified value set. "
+            f"Expected a code from the HL7 v3 ObservationInterpretation code system "
+            f"(http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation), "
+            f"a code from http://terminology.hl7.org/CodeSystem/data-absent-reason, "
+            f"or one of the retained words normal / high / low / abnormal / critical. "
+            f"Carry a code in none of those verbatim on interpretationSourceCode and "
+            f"put the nearest ratified reading here"
+        )
+        if record_type in _WARNING_ONLY_INTERPRETATION_TYPES:
+            warnings.append(message)
+        else:
+            errors.append(f"Invalid {message}")
+
+    # health:interpretationSourceCode / clinical:interpretationSourceCode
+    # (health v2.7 / clinical v1.15). The VALUE is unconstrained by design: it
+    # is the source's own code, and a value set or a pattern here would
+    # recreate exactly the loss the property exists to prevent. The CARDINALITY
+    # is not: interpretation is 0..1, so the verbatim code that explains it is
+    # 0..1 too, and two source codes on one interpretation is a merge artefact.
+    source_code = _get_either(
+        data, "interpretationSourceCode", "interpretation_source_code"
+    )
+    if isinstance(source_code, (list, tuple, set)) and len(source_code) > 1:
+        errors.append(
+            f"Invalid interpretationSourceCode: {list(source_code)!r}. At most one "
+            f"value is permitted, because the interpretation it explains is itself "
+            f"single-valued"
+        )
+
+    # cascade:dataAbsentReason (core v3.6): single-valued, and bound to the 15
+    # data-absent-reason codes. A value is absent for ONE reason; two reasons
+    # is a merge artefact a reader cannot choose between.
+    absent_reason = _get_either(data, "dataAbsentReason", "data_absent_reason")
+    if isinstance(absent_reason, (list, tuple, set)):
+        if len(absent_reason) > 1:
             errors.append(
-                f"Invalid interpretation: {interpretation!r}. Must be a code from the "
-                f"HL7 v3 ObservationInterpretation code system "
-                f"(http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation), "
-                f"the data-absent-reason code 'unknown', or one of the retained words "
-                f"normal / high / low / abnormal / critical"
+                f"Invalid dataAbsentReason: {list(absent_reason)!r}. A value is "
+                f"absent for one reason; at most one code is permitted"
+            )
+        absent_values = list(absent_reason)
+    elif absent_reason is not None:
+        absent_values = [absent_reason]
+    else:
+        absent_values = []
+    for absent_value in absent_values:
+        if str(absent_value) not in _VALID_DATA_ABSENT_REASONS:
+            errors.append(
+                f"Invalid dataAbsentReason: {absent_value!r}. Must be a code from "
+                f"http://terminology.hl7.org/CodeSystem/data-absent-reason. A raw "
+                f"HL7 v3 NullFlavor code (UNK, NAV, NASK, ASKU, ...) is not "
+                f"accepted: map it on import"
             )
 
     if record_type == "DailySleepSnapshot":
@@ -387,6 +473,28 @@ def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[s
             errors.append(
                 "Missing timestamp: a DailyVitalReading must carry a date "
                 "(serialized as either cascade:date or health:date)"
+            )
+
+    if record_type == "Procedure":
+        # clinical:ProcedureShape's sh:or over the two name spellings. Omitting
+        # BOTH is the only violation. clinical:procedureName is canonical and
+        # health:procedureName is the deprecated import spelling accepted for
+        # the clinical v1.15 migration window; a C-CDA import path writes the
+        # health: spelling on records it types clinical:Procedure, so demanding
+        # the canonical one would reject a record that carries a name.
+        canonical = _get_either(data, "procedureName", "procedure_name")
+        migration = _get_either(data, "healthProcedureName", "health_procedure_name")
+        if not canonical and not migration:
+            errors.append(
+                "Missing procedure name: a Procedure must carry a name "
+                "(serialized as either clinical:procedureName or, during the "
+                "migration window, health:procedureName)"
+            )
+        elif migration and not canonical:
+            warnings.append(
+                "Procedure carries the deprecated health:procedureName spelling. "
+                "clinical:procedureName is canonical; the health: spelling is "
+                "accepted for the migration window only"
             )
 
     if record_type == "InteractionScenario":
@@ -413,14 +521,14 @@ def _validate_enums_and_bounds(record_type: str, data: dict[str, Any]) -> list[s
         elif high is not None and num > high:
             errors.append(f"Invalid {camel}: {raw!r} exceeds the maximum of {high}")
 
-    return errors
+    return errors, warnings
 
 
-def _validate_turtle_structural(turtle: str) -> list[str]:
+def _validate_turtle_structural(turtle: str) -> tuple[list[str], list[str]]:
     """
     Parse Turtle and validate extracted records structurally.
 
-    Returns list of errors.
+    Returns ``(errors, warnings)``.
     """
     try:
         import rdflib
@@ -454,6 +562,7 @@ def _validate_turtle_structural(turtle: str) -> list[str]:
 
         reverse_pred = build_reverse_predicate_map()
         errors: list[str] = []
+        warnings: list[str] = []
 
         for subj in set(g.subjects()):
             # Find type
@@ -485,14 +594,16 @@ def _validate_turtle_structural(turtle: str) -> list[str]:
                 else:
                     record[py_key] = str(o)
 
-            field_errors = _validate_dict_structural(record)
+            field_errors, field_warnings = _validate_dict_structural(record)
             for e in field_errors:
                 errors.append(f"Subject <{subj}>: {e}")
+            for w in field_warnings:
+                warnings.append(f"Subject <{subj}>: {w}")
 
-        return errors
+        return errors, warnings
 
     except Exception as exc:
-        return [f"Turtle parse error: {exc}"]
+        return [f"Turtle parse error: {exc}"], []
 
 
 def validate(
@@ -527,23 +638,25 @@ def validate(
             val = getattr(turtle_or_record, f.name)
             if val is not None:
                 data[f.name] = val
-        errors = _validate_dict_structural(data)
-        return ValidationResult(is_valid=not errors, errors=errors)
+        errors, warnings = _validate_dict_structural(data)
+        return ValidationResult(is_valid=not errors, errors=errors, warnings=warnings)
 
     # It's a Turtle string
     turtle = str(turtle_or_record)
 
     # Structural validation always runs
-    errors = _validate_turtle_structural(turtle)
+    errors, warnings = _validate_turtle_structural(turtle)
 
     if errors:
-        return ValidationResult(is_valid=False, errors=errors)
+        return ValidationResult(is_valid=False, errors=errors, warnings=warnings)
 
     # Optional SHACL validation
     if use_shacl:
-        return _run_shacl(turtle, shapes_file)
+        result = _run_shacl(turtle, shapes_file)
+        result.warnings = warnings + result.warnings
+        return result
 
-    return ValidationResult(is_valid=True)
+    return ValidationResult(is_valid=True, warnings=warnings)
 
 
 def _run_shacl(turtle: str, shapes_file: str | None = None) -> ValidationResult:
@@ -605,5 +718,5 @@ def validate_dict(data: dict[str, Any]) -> ValidationResult:
     Returns:
         A :class:`ValidationResult`.
     """
-    errors = _validate_dict_structural(data)
-    return ValidationResult(is_valid=not errors, errors=errors)
+    errors, warnings = _validate_dict_structural(data)
+    return ValidationResult(is_valid=not errors, errors=errors, warnings=warnings)

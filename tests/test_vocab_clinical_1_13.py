@@ -75,12 +75,19 @@ DEPRECATED_SPELLINGS_TTL = """
 """
 
 
-def test_the_four_deprecated_classes_are_declared_with_their_replacements() -> None:
+def test_the_deprecated_classes_are_declared_with_their_replacements() -> None:
+    """Four clinical v1.13 deprecations, plus the clinical v1.15 retarget.
+
+    health:ProcedureRecord is the fifth: no vocabulary ever defined it and no
+    shape targeted it, so records this SDK wrote under that type ran against
+    zero constraints. They still have to parse.
+    """
     assert DEPRECATED_TYPE_ALIASES == {
         "clinical:LabResult": "health:LabResultRecord",
         "clinical:Condition": "health:ConditionRecord",
         "clinical:Allergy": "health:AllergyRecord",
         "clinical:Immunization": "health:ImmunizationRecord",
+        "health:ProcedureRecord": "clinical:Procedure",
     }
 
 

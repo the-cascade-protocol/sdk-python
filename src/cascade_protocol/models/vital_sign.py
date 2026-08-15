@@ -109,6 +109,26 @@ class VitalSign(CascadeRecord):
     Note: VitalSign uses the clinical: namespace for interpretation.
     """
 
+    interpretation_source_code: str | None = None
+    """
+    The interpretation code the SOURCE wrote, copied verbatim, for the case
+    where that code is a member of neither value set ``interpretation`` is
+    bound to (clinical v1.15).
+
+    Deliberately unconstrained in its VALUE: a value set or a pattern here
+    would recreate exactly the loss the property exists to prevent. It is
+    single-valued, because the interpretation it explains is single-valued and
+    two source codes on one interpretation is a merge artefact.
+
+    A producer that recognises the source code's intent should ALSO write its
+    best ratified equivalent on ``interpretation``, so a consumer reading only
+    the bound property still gets a usable reading. The pair
+    ``interpretation="H"``, ``interpretation_source_code="elevated"`` says: the
+    source said "elevated", and the nearest ratified code is H (High).
+
+    Maps to ``clinical:interpretationSourceCode`` in Turtle serialization.
+    """
+
     @classmethod
     def from_dataframe(cls, df: "pd.DataFrame") -> list["VitalSign"]:  # type: ignore[name-defined]
         """Reconstruct a list of VitalSign records from a pandas DataFrame."""

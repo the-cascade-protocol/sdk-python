@@ -2,9 +2,9 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.5
-health=2.6
-clinical=1.14
+core=3.6
+health=2.7
+clinical=1.15
 coverage=1.4
 # coverage=1.3: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
 # core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
@@ -118,4 +118,20 @@ pots=1.4
 #     ratified set and the shapes reject it, but this SDK's own
 #     LabInterpretation and VitalInterpretation named it through v1.5.0, and
 #     conformance vital-001 / vital-004 are still POSITIVE fixtures carrying
-#     it. See _SDK_LEGACY_INTERPRETATIONS for the removal trigger.
+#     it. That exception is GONE as of core=3.6: the two fixtures moved to a
+#     ratified code plus a verbatim source code, which is the removal trigger
+#     that was written on it.
+#
+# core=3.6: cascade:dataAbsentReason registered (15-code value set, single
+#     valued) and carried on CascadeRecord. cascade:sourceSystem registered
+#     too: it was in the published JSON-LD context and never here, so the
+#     INGESTION axis could not round-trip while ORIGIN could.
+# health=2.7 / clinical=1.15: interpretationSourceCode registered in BOTH
+#     spellings (health: on labs, clinical: on vitals) and carried on the two
+#     models. The interpretation value set moves 60 to 74 (the 14
+#     data-absent-reason codes it lacked) and the checksum is re-pinned. The
+#     vital binding is sh:Warning, not sh:Violation, so an out-of-set vital
+#     interpretation is reported and the record stays valid; labs keep the
+#     violation. Procedure records retarget onto clinical:Procedure /
+#     clinical:procedureName, with health:procedureName accepted and warned on
+#     for the migration window.
