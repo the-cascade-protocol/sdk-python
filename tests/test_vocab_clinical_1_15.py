@@ -229,3 +229,57 @@ def test_the_typed_model_still_round_trips_under_the_retarget() -> None:
     parsed = parse(turtle, "ProcedureRecord")
     assert len(parsed) == 1
     assert parsed[0].procedure_name == "Appendectomy"
+
+
+def test_the_vital_source_code_survives_a_round_trip() -> None:
+    """A reader has to accept every live spelling; only the writer picks one.
+
+    The clinical: spelling is what a vital WRITES, so a reverse map that knew
+    only the health: one serialized the source code and then dropped it on
+    read. That is the same silent loss the property exists to prevent, moved
+    from the writer to the reader.
+    """
+    from cascade_protocol import parse
+
+    record = VitalSign(
+        id="urn:uuid:c115v000-0000-4000-8000-000000000003",
+        vital_type="bloodPressureSystolic",
+        value=134,
+        unit="mmHg",
+        data_provenance="ClinicalGenerated",
+        schema_version="1.3",
+        interpretation="H",
+        interpretation_source_code="elevated",
+    )
+    parsed = parse(serialize(record), "VitalSign")[0]
+    assert parsed.interpretation == "H"
+    assert parsed.interpretation_source_code == "elevated"
+
+
+def test_the_lab_source_code_survives_a_round_trip() -> None:
+    from cascade_protocol import parse
+
+    record = LabResult(
+        id="urn:uuid:c115l000-0000-4000-8000-000000000003",
+        test_name="Ferritin",
+        data_provenance="EHRVerified",
+        schema_version="1.3",
+        interpretation="A",
+        interpretation_source_code="HIGH-LOCAL",
+    )
+    parsed = parse(serialize(record), "LabResultRecord")[0]
+    assert parsed.interpretation_source_code == "HIGH-LOCAL"
+
+
+def test_the_absence_reason_survives_a_round_trip() -> None:
+    from cascade_protocol import parse
+
+    record = LabResult(
+        id="urn:uuid:c115l000-0000-4000-8000-000000000004",
+        test_name="Serum Potassium",
+        data_provenance="EHRVerified",
+        schema_version="1.3",
+        data_absent_reason="not-asked",
+    )
+    parsed = parse(serialize(record), "LabResultRecord")[0]
+    assert parsed.data_absent_reason == "not-asked"
