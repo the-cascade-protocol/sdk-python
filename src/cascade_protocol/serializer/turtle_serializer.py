@@ -67,11 +67,15 @@ _TYPE_PREDICATE_OVERRIDES: dict[str, dict[str, str]] = {
     "VitalSign": {
         "snomed_code": "clinical:snomedCode",
         "interpretation": "clinical:interpretation",
+        # health v2.7 / clinical v1.15: the escape hatch follows the property
+        # it explains into the clinical: namespace on a vital sign.
+        "interpretation_source_code": "clinical:interpretationSourceCode",
     },
     # Camel variants
     "_camel_VitalSign": {
         "snomedCode": "clinical:snomedCode",
         "interpretation": "clinical:interpretation",
+        "interpretationSourceCode": "clinical:interpretationSourceCode",
     },
     # -- health v2.5 daily entries --------------------------------------------
     # The daily snapshots carry their timestamp on cascade:date, not the

@@ -79,9 +79,13 @@ from cascade_protocol.vocabularies.namespaces import (
 # classes. A reader has to accept every live spelling; only the writer gets to
 # pick one.
 _ADDITIONAL_REVERSE = {
-    # VitalSign uses the clinical: namespace for these two.
+    # VitalSign uses the clinical: namespace for these three.
     f"{NAMESPACES['clinical']}snomedCode": "snomed_code",
     f"{NAMESPACES['clinical']}interpretation": "interpretation",
+    # health v2.7 / clinical v1.15. Without this the verbatim source code is
+    # WRITTEN on a vital and then dropped on read, which is the same silent
+    # loss the property exists to prevent, just moved to the reader.
+    f"{NAMESPACES['clinical']}interpretationSourceCode": "interpretation_source_code",
     # health v2.5 / core v3.4 reading-level terms. cascade:date and health:date
     # are both live for the same field: health:DailyVitalReadingShape requires
     # one OR the other through an sh:or precisely because two emitters spell it

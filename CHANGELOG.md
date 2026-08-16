@@ -5,6 +5,37 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-15
+
+Vocabulary sync: core v3.6, health v2.7, clinical v1.15.
+
+Major, not minor, for two reasons stated plainly: procedure records now serialize onto a different RDF class and a different name predicate, and one value this package accepted on a lab result is now rejected. Both are breaking for anyone reading this SDK's output or relying on what it called valid.
+
+### Changed (BREAKING)
+
+- Procedure records serialize as `clinical:Procedure` with `clinical:procedureName`, not `health:ProcedureRecord` with `health:procedureName`. No vocabulary has ever defined `health:ProcedureRecord` or `health:procedureName`, and no shape targeted either, so procedure records this SDK wrote ran against zero constraints while appearing to validate. `clinical:Procedure` is the class `clinical:ProcedureShape` targets. A consumer querying the old spellings will find nothing and must be updated; `health:ProcedureRecord` is registered as a deprecated type alias so records already written still parse, and both `"Procedure"` and `"ProcedureRecord"` are accepted as the `type` field. The `Procedure` dataclass and `parse(..., "ProcedureRecord")` are unchanged.
+- `"elevated"` on a lab result is now a validation ERROR. It was accepted through a one-member exception carrying its own removal trigger: delete it when the two conformance fixtures asserting it move to a ratified code. Those fixtures now carry `interpretation "H"` plus `interpretationSourceCode "elevated"`, so the trigger fired and the exception, its branch and its test are gone. The migration is not to pick a different word, it is to write the ratified reading plus the source's own word verbatim.
+- An out-of-set `interpretation` on a VITAL SIGN is now a WARNING rather than an error, and the record is valid. `clinical:VitalSignShape` binds the value set at `sh:Warning` in clinical v1.15, so rejecting was stricter than the shape and failed records the ecosystem's validator accepts. The lab shapes bind the same set at `sh:Violation` and labs are unchanged. Callers that treated `is_valid=False` as the only signal should now also read `ValidationResult.warnings`.
+
+### Added
+
+Core v3.6:
+- `cascade:dataAbsentReason` registered (snake and camel) and carried on `CascadeRecord`, so every record type has it. Why a record's primary VALUE is absent, with semantics that are exactly FHIR R4 `Observation.dataAbsentReason`. Bound to the 15 codes of `http://terminology.hl7.org/CodeSystem/data-absent-reason`, single-valued, and enforced by `validate()` / `validate_dict()`. A raw HL7 v3 NullFlavor code (`UNK`, `NAV`, `NASK`, `ASKU`, ...) is rejected: an importer maps nullFlavor on the way in, using the table stated on the property, and accepting both spellings would give every absence two encodings.
+- `cascade:sourceSystem` registered (snake and camel) and carried on `CascadeRecord`. It has been in the published JSON-LD context since core v3.0 and was never registered here, so the INGESTION axis could not round-trip even though the ORIGIN axis could. Not a reconciliation key: one batch routinely carries several organizations.
+
+Health v2.7 and clinical v1.15:
+- `health:interpretationSourceCode` and `clinical:interpretationSourceCode` registered, and carried on `LabResult` and `VitalSign`. The source's own interpretation code, verbatim, for the case where it is a member of neither ratified value set. The value is deliberately unconstrained (a value set or a pattern here would recreate exactly the loss the property exists to prevent) and the cardinality is not: `interpretation` is 0..1, so the code that explains it is 0..1 too, and two source codes on one interpretation is a merge artefact. A lab writes the `health:` spelling and a vital the `clinical:` one, so the code always sits on the same side as the interpretation it explains.
+- The `interpretation` value set goes from 60 to 74 values: the 14 data-absent-reason codes it lacked. health v2.6 admitted only `"unknown"`, so `NASK`, `ASKU` and `NAV` were all flattened onto it and three different clinical facts became one. `LAB_INTERPRETATION` checksum re-pinned to `1ae24bf8ceccfa2a71d870bae21dc91cc7f906d736496ec23ca78b4181ba05b0`, verified to fail against the previous digest before re-pinning.
+- `clinical:ProcedureShape`'s name requirement is an `sh:or` over `clinical:procedureName` (canonical) and `health:procedureName` (the deprecated import spelling). A record carrying only the deprecated spelling validates and warns; a record carrying neither is rejected. This is a migration window and both halves are removed together in a later clinical version.
+- `ValidationResult.warnings` is now populated by structural validation, mirroring `sh:Warning` results, which a conforming SHACL processor reports without withholding conformance.
+
+### Removed
+- `_SDK_LEGACY_INTERPRETATIONS`, the branch that read it, and its test. Its removal trigger fired in this release.
+
+### Known gaps
+- The `content_hashed_uri()` sequence rule is defined by this SDK and is not yet in the shared cross-SDK vectors, so a URI minted from a multi-code field will not match one minted by another SDK until it is.
+- `Encounter` and `MedicationAdministration` carry the multi-valued field but remain serialize-only: neither is registered in the deserializer. Predates this release.
+
 ## [2.0.0] - 2026-08-10
 
 Vocabulary sync: core v3.5, health v2.6, clinical v1.14, coverage v1.4, checkup v3.3.

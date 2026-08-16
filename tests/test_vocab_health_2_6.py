@@ -67,7 +67,17 @@ from cascade_protocol import (
 #   print(hashlib.sha256("\n".join(codes).encode()).hexdigest())
 #   EOF
 #
-_INTERPRETATION_SHA256 = "2da0a308329c92456edf7f46d1529c1a2971b79294d0776025328d04773695f2"
+_INTERPRETATION_SHA256 = "1ae24bf8ceccfa2a71d870bae21dc91cc7f906d736496ec23ca78b4181ba05b0"
+
+# All 15 codes of http://terminology.hl7.org/CodeSystem/data-absent-reason,
+# in the order the shape lists them. health v2.6 accepted only "unknown";
+# health v2.7 / clinical v1.15 accept all 15.
+_DATA_ABSENT_REASON_CODES = (
+    "unknown", "asked-unknown", "temp-unknown", "not-asked",
+    "asked-declined", "masked", "not-applicable", "unsupported",
+    "as-text", "error", "not-a-number", "negative-infinity",
+    "positive-infinity", "not-performed", "not-permitted",
+)
 
 # The ten words retained from health v2.5 so data already written keeps
 # validating. Not recommended for new writes.
@@ -82,20 +92,20 @@ def test_interpretation_checksum_matches_the_ratified_list() -> None:
     canonical = "\n".join(OBSERVATION_INTERPRETATION_CODES)
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     assert digest == _INTERPRETATION_SHA256, (
-        "The interpretation value set no longer matches health v2.6. If the "
+        "The interpretation value set no longer matches health v2.7. If the "
         "vocabulary changed, re-derive the digest from the shape file and "
         "update both this test and the comment in models/common.py."
     )
 
 
-def test_interpretation_set_has_60_distinct_values() -> None:
-    """49 selectable HL7 codes + 'unknown' + the 10 retained words."""
-    assert len(OBSERVATION_INTERPRETATION_CODES) == 60
-    assert len(set(OBSERVATION_INTERPRETATION_CODES)) == 60
+def test_interpretation_set_has_74_distinct_values() -> None:
+    """49 selectable HL7 codes + the 15 data-absent-reason codes + 10 words."""
+    assert len(OBSERVATION_INTERPRETATION_CODES) == 74
+    assert len(set(OBSERVATION_INTERPRETATION_CODES)) == 74
     assert OBSERVATION_INTERPRETATION_VALUES == frozenset(OBSERVATION_INTERPRETATION_CODES)
 
 
-def test_interpretation_composition_is_hl7_then_unknown_then_legacy() -> None:
+def test_interpretation_composition_is_hl7_then_absence_then_legacy() -> None:
     """Order is load-bearing: the first 49 are the code system's own order."""
     hl7_selectable = OBSERVATION_INTERPRETATION_CODES[:49]
     assert hl7_selectable[0] == "EX"
@@ -114,8 +124,8 @@ def test_interpretation_composition_is_hl7_then_unknown_then_legacy() -> None:
     ):
         assert abstract not in OBSERVATION_INTERPRETATION_VALUES
 
-    assert OBSERVATION_INTERPRETATION_CODES[49] == "unknown"
-    assert tuple(OBSERVATION_INTERPRETATION_CODES[50:]) == _RETAINED_V25_WORDS
+    assert tuple(OBSERVATION_INTERPRETATION_CODES[49:64]) == _DATA_ABSENT_REASON_CODES
+    assert tuple(OBSERVATION_INTERPRETATION_CODES[64:]) == _RETAINED_V25_WORDS
 
 
 def test_susceptibility_detection_reactivity_and_change_codes_are_accepted() -> None:
@@ -189,49 +199,72 @@ def test_validator_accepts_every_ratified_value(code: str) -> None:
     assert validate_dict(_lab_dict(interpretation=code)).is_valid
 
 
+def _vital_dict(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "id": "urn:uuid:0f000000-0000-4000-8000-000000000020",
+        "type": "VitalSign",
+        "vitalType": "bloodPressureSystolic",
+        "value": 118,
+        "unit": "mmHg",
+        "dataProvenance": "ClinicalGenerated",
+        "schemaVersion": "1.3",
+    }
+    data.update(overrides)
+    return data
+
+
 def test_validator_checks_clinical_interpretation_too() -> None:
     """The two properties carry identical sh:in lists, so one check serves both.
 
-    Keyed on the property rather than the record type: a check that fired only
-    on lab results would let the same garbage through on a vital sign, and the
-    shape rejects it in both places.
+    MEMBERSHIP is keyed on the property rather than the record type: a check
+    that fired only on lab results would let the same garbage through on a
+    vital sign.
     """
     from cascade_protocol import validate_dict
 
-    result = validate_dict(
-        {
-            "id": "urn:uuid:0f000000-0000-4000-8000-000000000020",
-            "type": "VitalSign",
-            "vitalType": "bloodPressureSystolic",
-            "value": 118,
-            "unit": "mmHg",
-            "interpretation": "quite high",
-            "dataProvenance": "ClinicalGenerated",
-            "schemaVersion": "1.3",
-        }
-    )
+    result = validate_dict(_vital_dict(interpretation="quite high"))
+    assert result.warnings, "an out-of-set vital interpretation must be reported"
+
+
+def test_an_out_of_set_vital_interpretation_warns_and_stays_valid() -> None:
+    """clinical v1.15 binds the vital value set at sh:Warning, not sh:Violation.
+
+    A warning is REPORTED without withholding conformance, so the record is
+    still valid. This is the ratchet: the severity is raised in a later
+    clinical version, once the warning is observably absent from conforming
+    output. Rejecting here would be stricter than the shape and would fail
+    records the ecosystem's own validator accepts.
+    """
+    from cascade_protocol import validate_dict
+
+    result = validate_dict(_vital_dict(interpretation="elevated"))
+    assert result.is_valid
+    assert not result.errors
+    assert len(result.warnings) == 1
+    assert "elevated" in result.warnings[0]
+
+
+def test_an_out_of_set_lab_interpretation_is_an_error_not_a_warning() -> None:
+    """The lab shapes bind the same value set at sh:Violation.
+
+    The severity split is the whole point: the same value is a warning on a
+    vital and an error on a lab, because that is what the two shapes say.
+    """
+    from cascade_protocol import validate_dict
+
+    result = validate_dict(_lab_dict(interpretation="elevated"))
     assert not result.is_valid
+    assert result.errors
+    assert not result.warnings
 
 
-def test_the_one_word_this_sdk_published_is_still_accepted() -> None:
-    """``"elevated"`` is accepted, and it is the only exception.
-
-    It is not in the ratified set and the shapes reject it, so this is a
-    deliberate, bounded departure: this package's own ``LabInterpretation``
-    and ``VitalInterpretation`` named it through v1.5.0, so records written
-    against those aliases carry it, and the conformance corpus still asserts
-    it must be accepted (``vital-001`` and ``vital-004`` are POSITIVE
-    fixtures carrying it).
-
-    Removal trigger: when those two fixtures move to a ratified code, delete
-    ``_SDK_LEGACY_INTERPRETATIONS`` and this test. Nothing else has to change.
-    """
+def test_a_ratified_vital_interpretation_warns_about_nothing() -> None:
+    """The warning must fire on the value, not on every vital sign."""
     from cascade_protocol import validate_dict
-    from cascade_protocol.validator.validator import _SDK_LEGACY_INTERPRETATIONS
 
-    assert _SDK_LEGACY_INTERPRETATIONS == frozenset({"elevated"})
-    assert "elevated" not in OBSERVATION_INTERPRETATION_VALUES
-    assert validate_dict(_lab_dict(interpretation="elevated")).is_valid
+    result = validate_dict(_vital_dict(interpretation="H"))
+    assert result.is_valid
+    assert not result.warnings
 
 
 def test_a_record_with_no_interpretation_is_unaffected() -> None:

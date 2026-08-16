@@ -51,7 +51,7 @@ AllergySeverity = Literal["mild", "moderate", "severe", "life-threatening"]
 AllergyCategory = Literal["medication", "food", "environmental", "biologic"]
 
 # ---------------------------------------------------------------------------
-# Observation Interpretation (health v2.6 / clinical v1.14)
+# Observation Interpretation (health v2.7 / clinical v1.15)
 # ---------------------------------------------------------------------------
 #
 # health:interpretation and clinical:interpretation are bound to the HL7 v3
@@ -60,7 +60,7 @@ AllergyCategory = Literal["medication", "food", "environmental", "biologic"]
 # 3.0.0), which is what FHIR R4 binds Observation.interpretation to. The two
 # Cascade properties carry identical sh:in lists, so this SDK holds ONE set.
 #
-# The 60 accepted values are, in order:
+# The 74 accepted values are, in order:
 #
 #   1. The 49 SELECTABLE codes of that code system, verbatim and in the code
 #      system's own order. The eight abstract concepts it marks notSelectable
@@ -72,9 +72,13 @@ AllergyCategory = Literal["medication", "food", "environmental", "biologic"]
 #      are deliberately absent. Codes the code system marks deprecated
 #      (Carrier, AC, QCF, TOX, MS, VS, HM, OBX, H>, L<) ARE accepted: a
 #      deprecated code is still a defined code and historical results carry it.
-#   2. "unknown", from
-#      http://terminology.hl7.org/CodeSystem/data-absent-reason, written by
-#      importers when the source Observation carried no interpretation at all.
+#   2. All 15 codes of
+#      http://terminology.hl7.org/CodeSystem/data-absent-reason, for a source
+#      Observation whose interpretation element was absent or null-flavoured.
+#      health v2.6 / clinical v1.14 admitted only "unknown" here, so NASK, ASKU
+#      and NAV all had to be flattened onto it and three different clinical
+#      facts became one. health v2.7 / clinical v1.15 admit the other 14, which
+#      is what keeps "nobody asked" distinguishable from "asked, did not know".
 #   3. The ten lower- and title-case English words this SDK accepted through
 #      v1.5.0, retained so data already written keeps validating. NOT
 #      recommended for new writes.
@@ -92,8 +96,12 @@ AllergyCategory = Literal["medication", "food", "environmental", "biologic"]
 # OBSERVATION_INTERPRETATION_CODES in the order below, newline-joined, UTF-8
 # encoded, with no trailing newline:
 #
-#   health v2.6 / clinical v1.14
-#   sha256 = 2da0a308329c92456edf7f46d1529c1a2971b79294d0776025328d04773695f2
+#   health v2.7 / clinical v1.15
+#   sha256 = 1ae24bf8ceccfa2a71d870bae21dc91cc7f906d736496ec23ca78b4181ba05b0
+#
+#   (health v2.6 / clinical v1.14 was
+#    2da0a308329c92456edf7f46d1529c1a2971b79294d0776025328d04773695f2, over the
+#    same list without the 14 data-absent-reason codes added in this release.)
 #
 # tests/test_vocab_health_2_6.py recomputes it from the constant. If the
 # vocabulary changes, re-derive the digest from the shape file and update both
@@ -107,8 +115,11 @@ ObservationInterpretation = Literal[
     "AA", "H", "L", "HH", "LL", "HX", "LX", "H>", "HU", "E", "L<", "LU",
     "ND", "IND", "NEG", "POS", "EXP", "UNE", "DET",
     "SYN-R", "NR", "RR", "WR", "SDD", "SYN-S",
-    # -- data-absent-reason
-    "unknown",
+    # -- data-absent-reason, all 15 codes (health v2.7 / clinical v1.15)
+    "unknown", "asked-unknown", "temp-unknown", "not-asked",
+    "asked-declined", "masked", "not-applicable", "unsupported",
+    "as-text", "error", "not-a-number", "negative-infinity",
+    "positive-infinity", "not-performed", "not-permitted",
     # -- retained from health v2.5 / clinical v1.13; not for new writes
     "normal", "high", "low", "abnormal", "critical",
     "Normal", "High", "Low", "Abnormal", "Critical",
@@ -119,7 +130,7 @@ OBSERVATION_INTERPRETATION_CODES: tuple[str, ...] = get_args(ObservationInterpre
 
 Derived from the type alias so the two can never disagree. Order is part of
 the definition: it is the code system's own order, and the checksum that pins
-this list to health v2.6 is computed over it.
+this list to health v2.7 is computed over it.
 """
 
 OBSERVATION_INTERPRETATION_VALUES: frozenset[str] = frozenset(OBSERVATION_INTERPRETATION_CODES)
@@ -305,6 +316,46 @@ class CascadeRecord:
     spellings of one organization are two labels).
 
     Maps to ``cascade:sourceIdentity`` in Turtle serialization.
+    """
+
+    source_system: str | None = None
+    """
+    INGESTION: the batch this record arrived in (for example an export file or
+    a sync run). Published in the JSON-LD context since core v3.0; registered
+    here so it round-trips.
+
+    Explicitly NOT a reconciliation key (core v3.5 narrowed the property's own
+    comment to say so): one ingestion batch routinely carries records from
+    several organizations, so two records agreeing here have not been shown to
+    share an origin. Use :attr:`source_identity` for that.
+
+    Maps to ``cascade:sourceSystem`` in Turtle serialization.
+    """
+
+    data_absent_reason: str | None = None
+    """
+    Why this record's primary VALUE is absent (core v3.6).
+
+    Semantics are exactly FHIR R4 ``Observation.dataAbsentReason``: it explains
+    the absence of the record's value, and it is meaningful only when that
+    value is in fact absent. A record that carries a value MUST NOT also carry
+    this property.
+
+    One of the 15 codes of
+    ``http://terminology.hl7.org/CodeSystem/data-absent-reason``: unknown,
+    asked-unknown, temp-unknown, not-asked, asked-declined, masked,
+    not-applicable, unsupported, as-text, error, not-a-number,
+    negative-infinity, positive-infinity, not-performed, not-permitted.
+
+    A raw HL7 v3 NullFlavor code (``UNK``, ``NAV``, ``NASK``, ``ASKU``, ...) is
+    NOT accepted here. An importer reading a C-CDA nullFlavor maps it on the
+    way in, using the table stated on the property in core.ttl; accepting both
+    spellings would give every absence two encodings.
+
+    Distinct from an absent INTERPRETATION on a record whose value is present,
+    which is recorded on the interpretation property itself.
+
+    Maps to ``cascade:dataAbsentReason`` in Turtle serialization.
     """
 
     def to_dict(self) -> dict:

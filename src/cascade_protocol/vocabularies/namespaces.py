@@ -130,10 +130,16 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "supplement_name",
         "name_pred": "clinical:supplementName",
     },
+    # clinical v1.15: clinical:Procedure is the class clinical:ProcedureShape
+    # targets, and clinical:procedureName is the canonical name spelling. The
+    # health: vocabulary defines NEITHER a procedure class NOR
+    # health:procedureName, so the previous health:ProcedureRecord type ran
+    # against no shape at all. health:procedureName is still READ during the
+    # migration window; see health_procedure_name below.
     "procedures": {
-        "rdf_type": "health:ProcedureRecord",
+        "rdf_type": "clinical:Procedure",
         "name_key": "procedure_name",
-        "name_pred": "health:procedureName",
+        "name_pred": "clinical:procedureName",
     },
     "family-history": {
         "rdf_type": "health:FamilyHistoryRecord",
@@ -339,6 +345,9 @@ DEPRECATED_TYPE_ALIASES: dict[str, str] = {
     "clinical:Condition": "health:ConditionRecord",
     "clinical:Allergy": "health:AllergyRecord",
     "clinical:Immunization": "health:ImmunizationRecord",
+    # clinical v1.15: no vocabulary ever defined health:ProcedureRecord and no
+    # shape targeted it.
+    "health:ProcedureRecord": "clinical:Procedure",
 }
 
 # ---------------------------------------------------------------------------
@@ -391,7 +400,15 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "ImmunizationRecord": "immunizations",
     "VitalSign": "vital-signs",
     "Supplement": "supplements",
+    # Two accepted spellings, one mapping key. The FIRST entry is the canonical
+    # record-type string the deserializer returns, exactly as for the other
+    # multi-spelling entries below. "ProcedureRecord" stays canonical so the
+    # Procedure dataclass and parse(..., "ProcedureRecord") are unchanged; the
+    # RDF type it serializes to is clinical:Procedure either way, which is the
+    # part clinical v1.15 corrects. A record-type string differing from the RDF
+    # local name is already the norm here (MedicationRecord is clinical:Medication).
     "ProcedureRecord": "procedures",
+    "Procedure": "procedures",
     "FamilyHistoryRecord": "family-history",
     "CoverageRecord": "insurance",
     "InsurancePlan": "insurance",
@@ -584,7 +601,12 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "blood_type": "health:bloodType",
 
     # -- Procedure predicates --
-    "procedure_name": "health:procedureName",
+    # clinical:procedureName is canonical (clinical v1.15). The health:
+    # spelling below is what a C-CDA import path writes on records it types
+    # clinical:Procedure; it is accepted for the migration window and both
+    # halves are removed together when the window closes.
+    "procedure_name": "clinical:procedureName",
+    "health_procedure_name": "health:procedureName",
     "performer": "health:performer",
     "location": "health:location",
 
@@ -599,6 +621,19 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # INGESTION batch) and from clinical:sourceEHR (a display label): this is
     # the only one of the three that may be used as a reconciliation key.
     "source_identity": "cascade:sourceIdentity",
+    # The INGESTION axis. Published in the JSON-LD context since core v3.0 but
+    # never registered here, so it could not round-trip while the ORIGIN axis
+    # above could. Not a reconciliation key; see the comment on the property.
+    "source_system": "cascade:sourceSystem",
+    # core v3.6: why this record's primary VALUE is absent. Meaningful only
+    # when that value is in fact absent, and bound to the 15 codes of
+    # http://terminology.hl7.org/CodeSystem/data-absent-reason.
+    "data_absent_reason": "cascade:dataAbsentReason",
+    # health v2.7 / clinical v1.15: the source's own interpretation code,
+    # verbatim, for the case where it is in neither ratified value set. The
+    # clinical: spelling is written on vital signs; see the serializer's
+    # type-specific overrides.
+    "interpretation_source_code": "health:interpretationSourceCode",
 
     # -- Activity snapshot predicates --
     "date": "health:date",
@@ -915,13 +950,17 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "givenName": "foaf:givenName",
     "familyName": "foaf:familyName",
     "bloodType": "health:bloodType",
-    "procedureName": "health:procedureName",
+    "procedureName": "clinical:procedureName",
+    "healthProcedureName": "health:procedureName",
     "performer": "health:performer",
     "location": "health:location",
     "onsetAge": "health:onsetAge",
     "notes": "health:notes",
     "sourceRecordId": "health:sourceRecordId",
     "sourceIdentity": "cascade:sourceIdentity",
+    "sourceSystem": "cascade:sourceSystem",
+    "dataAbsentReason": "cascade:dataAbsentReason",
+    "interpretationSourceCode": "health:interpretationSourceCode",
     "date": "health:date",
     "steps": "health:steps",
     "distance": "health:distance",
