@@ -46,10 +46,24 @@ def test_vocab_versions_file_exists_and_parses() -> None:
 
 def test_the_wave_4_versions_are_claimed() -> None:
     versions = _read_versions(_VOCAB_VERSIONS)
-    assert versions["core"] == "3.7"
+    # core is 3.8, not 3.7: the wave-4 sync also picked up core v3.8's single
+    # term, cascade:PatientReported. clinical and coverage deliberately do NOT
+    # move to the v1.17 / v1.6 that ship alongside it upstream — that is a
+    # shapes-only nested-severity fix this SDK has not implemented, and
+    # claiming it would stop a later sync from looking at it.
+    assert versions["core"] == "3.8"
     assert versions["health"] == "2.8"
     assert versions["clinical"] == "1.16"
     assert versions["coverage"] == "1.5"
+
+
+def test_core_3_8_term_backs_the_claim() -> None:
+    """The one term core v3.8 adds. Claiming the version without admitting it
+    would leave this SDK rejecting a value every shape permits while reporting
+    itself in sync."""
+    from cascade_protocol.validator.validator import _VALID_PROVENANCE_TYPES
+
+    assert "PatientReported" in _VALID_PROVENANCE_TYPES
 
 
 def test_core_3_7_terms_back_the_claim() -> None:

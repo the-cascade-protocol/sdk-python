@@ -241,22 +241,65 @@ def test_the_negative_coverage_fixture_is_rejected() -> None:
 
 
 @pytest.mark.skipif(not _FIXTURES.exists(), reason="conformance checkout not a sibling")
-def test_the_positive_coverage_fixture_reads_back_its_status() -> None:
-    """READ rather than validate.
+def test_the_positive_coverage_fixture_validates_and_reads_back() -> None:
+    """The fixture named VALID is finally treated as valid.
 
-    coverage-status-active.VALID.ttl does not pass this SDK's structural
-    validator, and the reason is nothing to do with coverage v1.5: the fixture
-    declares cascade:PatientReported, a provenance individual that appears in
-    seventeen sh:in lists across the shapes files but is DEFINED NOWHERE in
-    core.ttl. This SDK enforces the set core.ttl defines, so it rejects it.
+    It was not, and the reason had nothing to do with coverage v1.5: the
+    fixture declares cascade:PatientReported, which seventeen sh:in lists
+    across the shapes accepted but core.ttl defined nowhere. This SDK derives
+    its provenance set from the ontology, so it rejected a value every shape
+    permits. core v3.8 defines the individual and the disagreement is gone.
 
-    That is a spec-side inconsistency, reported upstream rather than papered
-    over by widening this SDK's enum to admit an undefined term. The v1.5
-    property itself is exercised here, on the fixture's own bytes.
+    Both halves are asserted here deliberately. Reading the status proves the
+    v1.5 property works; validating proves the record is not being rejected for
+    a reason unrelated to it, which is the state this fixture was stuck in.
     """
     turtle = (_FIXTURES / "coverage" / "coverage-status-active.VALID.ttl").read_text(
         encoding="utf-8"
     )
+    result = validate(turtle)
+    assert result.is_valid, result.errors
+
     plan = parse(turtle, "CoverageRecord")[0]
     assert plan.status == "active"
     assert plan.provider_name == "Kestrel Mutual Health"
+    assert plan.data_provenance == "PatientReported"
+
+
+def test_patient_reported_is_accepted_as_a_provenance(  ) -> None:
+    """core v3.8 defines cascade:PatientReported; this SDK now admits it.
+
+    Keyed on a plain record rather than the fixture so the check survives a
+    fixture being renamed, and asserted on BOTH the runtime enum and a
+    round-tripped document — a validator that accepts the value while the
+    reader drops it would still lose the provenance.
+    """
+    from cascade_protocol.validator.validator import _VALID_PROVENANCE_TYPES
+
+    assert "PatientReported" in _VALID_PROVENANCE_TYPES
+
+    plan = _plan(status="active", data_provenance="PatientReported")
+    turtle = serialize(plan)
+    assert "cascade:dataProvenance cascade:PatientReported" in turtle
+
+    result = validate(turtle)
+    assert result.is_valid, result.errors
+    assert parse(turtle, "CoverageRecord")[0].data_provenance == "PatientReported"
+
+
+def test_patient_reported_is_distinct_from_self_reported() -> None:
+    """Not an alias. In SelfReported the patient enters the data directly; in
+    PatientReported their account is recorded by another party or system. Both
+    are defined, and admitting one must not have collapsed the other."""
+    from cascade_protocol.models.common import ProvenanceType
+    from typing import get_args
+
+    members = set(get_args(ProvenanceType))
+    assert {"PatientReported", "SelfReported"} <= members
+
+
+def test_an_undefined_provenance_is_still_rejected() -> None:
+    """Widening the set by one term must not have widened it to anything."""
+    assert not validate_dict(
+        _plan_dict(status="active", dataProvenance="ClinicianReported")
+    ).is_valid

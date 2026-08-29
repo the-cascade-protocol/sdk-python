@@ -154,6 +154,14 @@ _VALID_PROVENANCE_TYPES = frozenset({
     "ClinicalGenerated",
     "DeviceGenerated",
     "SelfReported",
+    # core v3.8. Seventeen sh:in lists across the clinical, health and coverage
+    # shapes have accepted cascade:PatientReported since their first release,
+    # but the individual was defined nowhere in core.ttl until v3.8, so this
+    # SDK rejected a value every shape permits — and the coverage conformance
+    # fixture that carries it could not validate here. See the note on
+    # ProvenanceType in models/common.py for why it subclasses DataProvenance
+    # directly and how it differs from SelfReported.
+    "PatientReported",
     "AIExtracted",
     "AIAsserted",
     "AIGenerated",

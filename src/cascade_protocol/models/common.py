@@ -23,6 +23,21 @@ ProvenanceType = Literal[
     "ClinicalGenerated",
     "DeviceGenerated",
     "SelfReported",
+    # Added in core v3.8. Seventeen SHACL constraints across the clinical,
+    # health and coverage shapes had accepted cascade:PatientReported since
+    # their first release, and the health vocabulary's provenance guidance
+    # instructs consumers to key on it — but the individual itself was defined
+    # nowhere in core.ttl, so this SDK (which derives its provenance set from
+    # the ontology, not from the shapes) rejected a value every shape permits.
+    # core v3.8 defines it as a DIRECT subclass of cascade:DataProvenance,
+    # rather than of ClinicalGenerated or ConsumerGenerated, because a
+    # patient's reported history reaches a record through either setting and
+    # the parent must not assert one.
+    #
+    # DISTINCT FROM "SelfReported": there the patient enters the data directly;
+    # here their account is recorded by another party or system (history
+    # related to a clinician, imported questionnaire responses).
+    "PatientReported",
     "AIExtracted",
     "AIAsserted",
     "AIGenerated",

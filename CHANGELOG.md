@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.1.0] - 2026-08-28
 
-Vocabulary sync: core v3.7, health v2.8, clinical v1.16, coverage v1.5. Twenty-four terms.
+Vocabulary sync: core v3.7 and v3.8, health v2.8, clinical v1.16, coverage v1.5. Twenty-five terms.
 
 Minor, not major: everything here is additive. No existing output moves, no value this package accepted becomes invalid, and every reader change accepts a spelling that was previously DROPPED rather than rejecting one that was previously read.
 
@@ -30,6 +30,9 @@ Clinical v1.16 — the fields a conformant R4 export sends and an Encounter had 
 Coverage v1.5:
 - `Coverage.status` (`coverage:status`), the FHIR R4 fm-status codes: active, cancelled, draft, entered-in-error. The bare field name `status` is bound to `health:status` (a Condition's clinical status), so the coverage spelling is a type-specific serializer override plus an explicit reverse mapping rather than a rename. The VALUE is an error, not a warning — FHIR binds `Coverage.status` REQUIRED, and no pod has ever carried the property, so a constraint here cannot invalidate existing data. PRESENCE is deliberately not required: no producer has yet had the chance to write it.
 
+Core v3.8:
+- `cascade:PatientReported` admitted to `ProvenanceType` and to the validator's accepted provenance set. Seventeen `sh:in` lists across the clinical, health and coverage shapes had accepted it since their first release, and the health vocabulary's provenance guidance instructs consumers to key on it — but the individual was defined nowhere in `core.ttl`, so this SDK, which derives its provenance set from the ontology rather than the shapes, rejected a value every shape permits. core v3.8 defines it as a DIRECT subclass of `cascade:DataProvenance` (not of `ClinicalGenerated` or `ConsumerGenerated`), because a patient's reported history reaches a record through either setting and the parent must not assert one. Distinct from `SelfReported`: there the patient enters the data directly; here their account is recorded by another party or system.
+
 Health v2.8 adds no term. It gains three shape bindings only, so the version row moves and there is nothing to implement.
 
 ### Fixed
@@ -45,7 +48,7 @@ Health v2.8 adds no term. It gains three shape bindings only, so the version row
 - `clinical:ClinicalDocument` is not modelled. The three v1.16 document properties are registered and resolve through `serialize_from_dict()` and the reverse predicate map, but no dataclass carries them, so nothing reads or writes them from a model. A document model is the follow-up.
 - `parse()` still returns an empty list for `MedicationAdministration`, `ImplantedDevice`, `ImagingStudy`, `ClaimRecord`, `BenefitStatement`, `DenialNotice`, `AppealRecord`, `ClinicalSocialHistoryRecord`, `AIExtractionActivity`, `AIDiscardedExtraction` and `SocialHistoryConsent`. Predates this release; `Encounter` is removed from that list here.
 - Repeated-predicate ORDER is not recoverable from RDF in either direction, so the source's author order behind `clinical:providerName` ("written from the first author") cannot be reconstructed from a pod. An importer that needs it must carry it at import time.
-- `conformance/fixtures/coverage/coverage-status-active.VALID.ttl` does not pass this SDK's structural validator, for a reason unrelated to coverage v1.5: it declares `cascade:PatientReported`, a provenance individual that appears in seventeen `sh:in` lists across the shapes files but is defined nowhere in `core.ttl`. This SDK enforces the set `core.ttl` defines. Reported upstream rather than papered over by admitting an undefined term.
+- The `core=3.8` row in `VOCAB_VERSIONS` is a claim about an UNMERGED upstream change: core v3.8 was read from spec commit `c856eb8d` on spec PR #32, which was still open at the time of writing. If that PR lands with the core half altered or renumbered, the row must be corrected — a claimed version is what stops a later sync from re-examining the vocabulary. The rest of #32 (clinical v1.17, coverage v1.6, a shapes-only nested-severity fix) is not implemented here and those rows stay at 1.16 / 1.5.
 
 ## [3.0.0] - 2026-08-15
 

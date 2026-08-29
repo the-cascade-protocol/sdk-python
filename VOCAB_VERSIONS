@@ -2,7 +2,7 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.7
+core=3.8
 health=2.8
 clinical=1.16
 coverage=1.5
@@ -203,3 +203,25 @@ pots=1.4
 # so all nine new fields would have been write-only and a round-trip test would
 # have passed vacuously against zero records. The other types CLAUDE.md lists
 # under "Deserializer registration" are untouched and still read as empty.
+
+# core=3.8 (2026-08-28): ONE term, cascade:PatientReported, defined as a direct
+#     rdfs:subClassOf cascade:DataProvenance. Admitted to this SDK's provenance
+#     set (ProvenanceType and the validator's _VALID_PROVENANCE_TYPES).
+#     Seventeen sh:in lists across the clinical, health and coverage shapes had
+#     accepted it since their first release and the health vocabulary's
+#     provenance guidance instructs consumers to key on it, but core.ttl defined
+#     it nowhere. This SDK derives its provenance set from the ONTOLOGY, not the
+#     shapes, so it rejected a value every shape permits, and
+#     conformance/fixtures/coverage/coverage-status-active.VALID.ttl could not
+#     validate here. That fixture now validates, and the test asserts it.
+#     Distinct from SelfReported: there the patient enters the data directly,
+#     here their account is recorded by another party or system.
+#
+#     PROVENANCE OF THIS ROW: core v3.8 was read from spec commit c856eb8d, on
+#     spec PR #32, which was still OPEN when this row was written. The row is
+#     therefore a claim about an unmerged upstream change. If #32 lands with the
+#     core half altered or renumbered, correct this row before the next sync —
+#     a claimed version is what stops a later sync from re-examining the
+#     vocabulary, so a wrong claim here is silent. The rest of #32 (clinical
+#     v1.17, coverage v1.6, a shapes-only nested-severity fix) is NOT
+#     implemented and those rows deliberately stay at 1.16 / 1.5.
