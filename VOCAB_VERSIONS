@@ -2,10 +2,10 @@
 # Compare against spec/VOCAB_VERSIONS to detect drift.
 # Run scripts/check-downstream-versions.sh from spec/ to check all repos at once.
 # Update this file when adding new model/predicate support for a vocabulary version.
-core=3.6
-health=2.7
-clinical=1.15
-coverage=1.4
+core=3.8
+health=2.8
+clinical=1.16
+coverage=1.5
 # coverage=1.3: ClaimRecord, BenefitStatement, DenialNotice, AppealRecord added
 # core=3.0: AIExtractionActivity, AIDiscardedExtraction, SocialHistoryConsent dataclasses added
 # core=3.1-3.3: AdvisoryApplicationActivity, AIGenerationActivity, GenerationTrigger, ProxyAgent, AIAsserted provenance leaf added
@@ -135,3 +135,93 @@ pots=1.4
 #     violation. Procedure records retarget onto clinical:Procedure /
 #     clinical:procedureName, with health:procedureName accepted and warned on
 #     for the migration window.
+
+# ---------------------------------------------------------------------------
+# 2026-08-28 wave-4 sync (spec tags vocab/core-v3.7, vocab/health-v2.8,
+# vocab/clinical-v1.16, vocab/coverage-v1.5). 24 terms.
+# ---------------------------------------------------------------------------
+#
+# core=3.7: ATTACHMENTS. cascade:Attachment (new class) + hasAttachment,
+#     attachmentPath, attachmentMediaType, contentHash, hashAlgorithm,
+#     byteSize, attachmentTitle. All 8 terms implemented.
+#     Attachment is a plain dataclass, NOT a CascadeRecord: it carries no
+#     provenance and no schema version and cascade:AttachmentShape requires
+#     neither, so subclassing would invent two required fields. It is written
+#     as its OWN IRI-identified subject rather than an inline blank node,
+#     because cascade:HasAttachmentEdgeShape asserts sh:nodeKind sh:IRI so the
+#     record and the attachment can live in different files.
+#     cascade:hasAttachment is domain-free ("any record that can be rendered as
+#     a document"), so it sits on CascadeRecord rather than on one class.
+#     The path, digest and algorithm patterns are enforced by the structural
+#     validator, verbatim from the shape; media-type PRESENCE is a warning and
+#     its FORM is an error, matching the two shapes upstream.
+#
+# health=2.8: NO TERM. The release adds none to health: — it gains three shape
+#     bindings only (per-class clinical:status value sets). Version row moved
+#     so downstream drift checks read true; nothing to implement.
+#
+# clinical=1.16: 15 terms (14 properties + 1 class). All implemented.
+#     Encounter (9): encounterClassDisplay, encounterClassSystem (written
+#     ^^xsd:anyURI, its declared range), encounterReason (repeatable),
+#     admitSource, dischargeDisposition, hasParticipant, and the
+#     EncounterParticipant class with participantName / participantRole /
+#     participantRoleCode (repeatable) / participantSpecialty.
+#     EncounterParticipant follows Attachment: plain dataclass, own IRI
+#     subject. Its shape permits a blank node — nothing references a
+#     participation from another file — but the conformance fixtures write an
+#     IRI and Attachment's edge shape leaves no choice, so one treatment
+#     serves both.
+#     Identity (1): businessIdentifier, domain-free and repeatable, hence on
+#     CascadeRecord. Values are the ratified "{system}|{value}" token form.
+#     Distinct from sourceRecordId, which stays single-valued.
+#     Documents (3): documentReferenceStatus, documentAuthorName,
+#     authenticatorName are REGISTERED but NOT REACHABLE — clinical:
+#     ClinicalDocument has no model in this SDK, so nothing writes or reads
+#     them from a dataclass. They resolve through serialize_from_dict() and
+#     the reverse predicate map; a document model is the open follow-up.
+#
+# coverage=1.5: coverage:status, the FHIR R4 fm-status codes. Implemented on
+#     the Coverage dataclass. The bare field name "status" is bound to
+#     health:status, so the coverage spelling is a type-specific serializer
+#     override plus an explicit reverse mapping. The VALUE is an error (the
+#     FHIR binding is REQUIRED and no pod has ever carried the property, so a
+#     constraint cannot invalidate existing data); PRESENCE is deliberately not
+#     required.
+#
+# Reader-side spellings registered by this sync (writers unchanged):
+#     coverage:InsurancePlan as an rdf:type — CURRENT, not deprecated. It
+#     resolved to no known type here, so such a subject was skipped in silence
+#     by the reader AND the validator: a coverage fixture was not passing
+#     validation, it was never being validated.
+#     coverage:providerName / memberId / groupNumber / planName / planType /
+#     coverageType / subscriberId, and clinical:sourceRecordId — every one a
+#     property its vocabulary declares, and the spelling the fixtures carry.
+#
+# Also closed here because the v1.16 encounter fields could not otherwise be
+# verified: clinical:Encounter is now registered in the deserializer's
+# _TYPE_CLASS_MAP. It serialized correctly but parse() returned an EMPTY LIST,
+# so all nine new fields would have been write-only and a round-trip test would
+# have passed vacuously against zero records. The other types CLAUDE.md lists
+# under "Deserializer registration" are untouched and still read as empty.
+
+# core=3.8 (2026-08-28): ONE term, cascade:PatientReported, defined as a direct
+#     rdfs:subClassOf cascade:DataProvenance. Admitted to this SDK's provenance
+#     set (ProvenanceType and the validator's _VALID_PROVENANCE_TYPES).
+#     Seventeen sh:in lists across the clinical, health and coverage shapes had
+#     accepted it since their first release and the health vocabulary's
+#     provenance guidance instructs consumers to key on it, but core.ttl defined
+#     it nowhere. This SDK derives its provenance set from the ONTOLOGY, not the
+#     shapes, so it rejected a value every shape permits, and
+#     conformance/fixtures/coverage/coverage-status-active.VALID.ttl could not
+#     validate here. That fixture now validates, and the test asserts it.
+#     Distinct from SelfReported: there the patient enters the data directly,
+#     here their account is recorded by another party or system.
+#
+#     PROVENANCE OF THIS ROW: core v3.8 was read from spec commit c856eb8d, on
+#     spec PR #32, which was still OPEN when this row was written. The row is
+#     therefore a claim about an unmerged upstream change. If #32 lands with the
+#     core half altered or renumbered, correct this row before the next sync —
+#     a claimed version is what stops a later sync from re-examining the
+#     vocabulary, so a wrong claim here is silent. The rest of #32 (clinical
+#     v1.17, coverage v1.6, a shapes-only nested-severity fix) is NOT
+#     implemented and those rows deliberately stay at 1.16 / 1.5.

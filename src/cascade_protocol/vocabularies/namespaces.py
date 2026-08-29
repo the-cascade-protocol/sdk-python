@@ -324,6 +324,21 @@ TYPE_MAPPING: dict[str, dict[str, str]] = {
         "name_key": "title",
         "name_pred": "dcterms:title",
     },
+    # -- core v3.7 / clinical v1.16 -- structural sub-nodes reached by an IRI
+    #    edge from the record they belong to. Neither is a cascade:HealthRecord:
+    #    they carry no provenance and no schema version, and their shapes
+    #    require neither. They are registered here so the generic serializer can
+    #    resolve their rdf:type and the reader can recognise them.
+    "attachments": {
+        "rdf_type": "cascade:Attachment",
+        "name_key": "attachment_title",
+        "name_pred": "cascade:attachmentTitle",
+    },
+    "encounter-participants": {
+        "rdf_type": "clinical:EncounterParticipant",
+        "name_key": "participant_name",
+        "name_pred": "clinical:participantName",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -348,6 +363,89 @@ DEPRECATED_TYPE_ALIASES: dict[str, str] = {
     # clinical v1.15: no vocabulary ever defined health:ProcedureRecord and no
     # shape targeted it.
     "health:ProcedureRecord": "clinical:Procedure",
+}
+
+# ---------------------------------------------------------------------------
+# Read-only type spellings (not deprecations)
+# ---------------------------------------------------------------------------
+
+# An rdf:type a READER must accept in addition to the one this SDK writes,
+# where BOTH spellings are current. Distinct from DEPRECATED_TYPE_ALIASES above:
+# nothing here is deprecated, and neither side is being retired.
+#
+# coverage:InsurancePlan is the coverage vocabulary's own class for the record
+# this SDK serializes as clinical:CoverageRecord, and it is what the coverage
+# conformance fixtures and the other Cascade SDKs write. Until it was
+# registered, a coverage:InsurancePlan subject resolved to no known type, so
+# every reader and the structural validator SKIPPED it in silence -- which
+# meant a coverage fixture did not fail validation, it was never validated at
+# all. A check that can pass by not running is not a check.
+#
+# The WRITE side is deliberately unchanged: this SDK still emits
+# clinical:CoverageRecord, so no existing output moves.
+READ_ONLY_TYPE_ALIASES: dict[str, str] = {
+    "coverage:InsurancePlan": "clinical:CoverageRecord",
+}
+
+# ---------------------------------------------------------------------------
+# Additional predicate spellings a reader must accept
+# ---------------------------------------------------------------------------
+
+# Full predicate URI -> Python field name, for predicates whose URI does not
+# fall out of PROPERTY_PREDICATES because the same field is written under
+# different namespaces by different classes or different producers.
+#
+# Shared by the deserializer AND the validator. They previously built their
+# reverse maps independently, and only the deserializer passed the extras, so a
+# predicate registered here was read correctly and then validated as if absent.
+ADDITIONAL_PREDICATE_SPELLINGS: dict[str, str] = {
+    # VitalSign uses the clinical: namespace for these three.
+    f"{NAMESPACES['clinical']}snomedCode": "snomed_code",
+    f"{NAMESPACES['clinical']}interpretation": "interpretation",
+    # health v2.7 / clinical v1.15. Without this the verbatim source code is
+    # WRITTEN on a vital and then dropped on read, which is the same silent
+    # loss the property exists to prevent, just moved to the reader.
+    f"{NAMESPACES['clinical']}interpretationSourceCode": "interpretation_source_code",
+    # health v2.5 / core v3.4 reading-level terms. cascade:date and health:date
+    # are both live for the same field: health:DailyVitalReadingShape requires
+    # one OR the other through an sh:or precisely because two emitters spell it
+    # differently. Reading only one of them would drop readings out of the time
+    # series they belong to.
+    f"{NAMESPACES['cascade']}date": "date",
+    f"{NAMESPACES['health']}value": "value",
+    f"{NAMESPACES['health']}unit": "unit",
+    f"{NAMESPACES['cascade']}loincCode": "loinc_code",
+    # cascade:notes is the manifest spelling of health:notes.
+    f"{NAMESPACES['cascade']}notes": "notes",
+    # clinical:sourceRecordId, the spelling every conformance fixture carries.
+    # Both vocabularies declare a sourceRecordId and this SDK writes the
+    # health: one, so the clinical: spelling was read by nothing: the logical
+    # id was dropped from every fixture that states it.
+    #
+    # It matters more from clinical v1.16 than it did before. The release's
+    # ruling is that the LOGICAL id (Resource.id, single-valued) and the
+    # BUSINESS identifiers (.identifier, 0..*) are different spaces that do not
+    # join. A reader that silently drops one of the two cannot show them being
+    # kept apart, which is the entire point of the new predicate.
+    f"{NAMESPACES['clinical']}sourceRecordId": "source_record_id",
+    # -- coverage: spellings (coverage v1.5 sync) --------------------------
+    # This SDK writes the clinical: spelling of a coverage record's fields, but
+    # the coverage vocabulary defines its own for each and that is what the
+    # conformance fixtures carry. Every URI below is a property coverage.ttl
+    # actually declares; none is invented. Read-only -- the writer is unchanged.
+    #
+    # coverage:status has no clinical: counterpart at all: the bare field name
+    # "status" is bound to health:status (a Condition's clinical status), so
+    # without this entry a plan's status would be WRITTEN via the serializer's
+    # type override and then dropped on read.
+    f"{NAMESPACES['coverage']}status": "status",
+    f"{NAMESPACES['coverage']}providerName": "provider_name",
+    f"{NAMESPACES['coverage']}memberId": "member_id",
+    f"{NAMESPACES['coverage']}groupNumber": "group_number",
+    f"{NAMESPACES['coverage']}planName": "plan_name",
+    f"{NAMESPACES['coverage']}planType": "plan_type",
+    f"{NAMESPACES['coverage']}coverageType": "coverage_type",
+    f"{NAMESPACES['coverage']}subscriberId": "subscriber_id",
 }
 
 # ---------------------------------------------------------------------------
@@ -445,6 +543,9 @@ TYPE_TO_MAPPING_KEY: dict[str, str] = {
     "ExportManifest": "export-manifest",
     "RecordSummary": "record-summary",
     "InteractionScenario": "interaction-scenario",
+    # -- core v3.7 / clinical v1.16 --
+    "Attachment": "attachments",
+    "EncounterParticipant": "encounter-participants",
 }
 
 # ---------------------------------------------------------------------------
@@ -617,6 +718,14 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # -- Shared predicates --
     "notes": "health:notes",
     "source_record_id": "health:sourceRecordId",
+    # clinical v1.16, the BUSINESS identifier space. Deliberately domain-free
+    # and repeatable: FHIR's .identifier is 0..* on every resource. Distinct
+    # from source_record_id above, which holds the server-assigned LOGICAL id
+    # (Resource.id) and exactly one of them. The two spaces do not join, and
+    # through v1.15 one predicate held both, so a stored value was
+    # uninterpretable. Values are the ratified "{system}|{value}" token form
+    # where the source stated a system, the bare value where it did not.
+    "business_identifier": "clinical:businessIdentifier",
     # core v3.5, the ORIGIN axis. Distinct from cascade:sourceSystem (the
     # INGESTION batch) and from clinical:sourceEHR (a display label): this is
     # the only one of the three that may be used as a reconciliation key.
@@ -656,6 +765,42 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "encounter_start": "clinical:encounterStart",
     "encounter_end": "clinical:encounterEnd",
     "facility_name": "clinical:facilityName",
+
+    # -- Clinical v1.16 -- the nine encounter facts a conformant R4 export
+    #    sends and clinical:Encounter had nowhere to keep. encounterClass keeps
+    #    the CODE; these restore the other two members of the Coding, because
+    #    Encounter.class is bound only extensibly and a local code with no
+    #    display and no system is unreadable and unmappable.
+    "encounter_class_display": "clinical:encounterClassDisplay",
+    "encounter_class_system": "clinical:encounterClassSystem",
+    # Repeatable (Encounter.reasonCode 0..*). No value set anywhere: FHIR binds
+    # reasonCode and admitSource PREFERRED and dischargeDisposition EXAMPLE, and
+    # an enum over an example-strength binding rejects conformant data.
+    "encounter_reason": "clinical:encounterReason",
+    "admit_source": "clinical:admitSource",
+    "discharge_disposition": "clinical:dischargeDisposition",
+    # The participation structure. A traversable IRI edge, like has_encounter.
+    "has_participant": "clinical:hasParticipant",
+
+    # -- Clinical v1.16 -- EncounterParticipant sub-node predicates --
+    "participant_name": "clinical:participantName",
+    "participant_role": "clinical:participantRole",
+    # Repeatable: Encounter.participant.type is 0..*, extensibly bound.
+    "participant_role_code": "clinical:participantRoleCode",
+    "participant_specialty": "clinical:participantSpecialty",
+
+    # -- Clinical v1.16 -- document status, authorship and attestation.
+    #    A document carries TWO independent status facts and TWO independent
+    #    attribution facts; through v1.15 each pair had one predicate, so each
+    #    pair's second member was dropped on import.
+    #
+    #    NOT REACHABLE FROM ANY MODEL YET. clinical:ClinicalDocument is not
+    #    modelled in this SDK, so nothing writes or reads these three. They are
+    #    registered so that the reverse predicate map resolves them the moment
+    #    a document model lands, rather than the sync being half-done twice.
+    "document_reference_status": "clinical:documentReferenceStatus",
+    "document_author_name": "clinical:documentAuthorName",
+    "authenticator_name": "clinical:authenticatorName",
 
     # -- MedicationAdministration predicates (clinical: vocabulary) --
     "administered_date": "clinical:administeredDate",
@@ -851,6 +996,26 @@ PROPERTY_PREDICATES: dict[str, str] = {
     # READ support only, so existing data carrying it is not silently dropped;
     # writers should use linked_condition.
     "linked_condition_ids": "clinical:linkedConditionIds",
+
+    # -- Core v3.7 -- attachments. A Pod can now hold the documents its records
+    #    point at. The bytes live under attachments/{algorithm}/{digest} and the
+    #    Turtle carries only this metadata node, because Turtle files here are
+    #    parse-critical: an unbounded inline base64 literal would be paid for by
+    #    every reader, including the ones that will never open the attachment.
+    #
+    #    hasAttachment is a traversable IRI edge and is domain-free, so it lives
+    #    on CascadeRecord rather than on one class. The rest are the node's own
+    #    properties. cascade:hashAlgorithm is stated rather than assumed: FHIR's
+    #    Attachment.hash fixes SHA-1, and a collision-capable digest in a
+    #    content-addressed store is a mechanism by which one document silently
+    #    replaces another.
+    "has_attachment": "cascade:hasAttachment",
+    "attachment_path": "cascade:attachmentPath",
+    "attachment_media_type": "cascade:attachmentMediaType",
+    "content_hash": "cascade:contentHash",
+    "hash_algorithm": "cascade:hashAlgorithm",
+    "byte_size": "cascade:byteSize",
+    "attachment_title": "cascade:attachmentTitle",
 }
 
 # Also provide camelCase -> predicate mapping for JSON input compatibility
@@ -957,6 +1122,9 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "onsetAge": "health:onsetAge",
     "notes": "health:notes",
     "sourceRecordId": "health:sourceRecordId",
+    # clinical v1.16: the BUSINESS identifier space, distinct from the LOGICAL
+    # id sourceRecordId holds. Domain-free and repeatable.
+    "businessIdentifier": "clinical:businessIdentifier",
     "sourceIdentity": "cascade:sourceIdentity",
     "sourceSystem": "cascade:sourceSystem",
     "dataAbsentReason": "cascade:dataAbsentReason",
@@ -977,6 +1145,22 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "encounterStart": "clinical:encounterStart",
     "encounterEnd": "clinical:encounterEnd",
     "facilityName": "clinical:facilityName",
+    # -- Clinical v1.16 -- encounter facts, participation, documents --
+    "encounterClassDisplay": "clinical:encounterClassDisplay",
+    "encounterClassSystem": "clinical:encounterClassSystem",
+    "encounterReason": "clinical:encounterReason",
+    "admitSource": "clinical:admitSource",
+    "dischargeDisposition": "clinical:dischargeDisposition",
+    "hasParticipant": "clinical:hasParticipant",
+    "participantName": "clinical:participantName",
+    "participantRole": "clinical:participantRole",
+    "participantRoleCode": "clinical:participantRoleCode",
+    "participantSpecialty": "clinical:participantSpecialty",
+    # Registered but not reachable: clinical:ClinicalDocument is not modelled
+    # in this SDK. See the snake_case block.
+    "documentReferenceStatus": "clinical:documentReferenceStatus",
+    "documentAuthorName": "clinical:documentAuthorName",
+    "authenticatorName": "clinical:authenticatorName",
     "administeredDate": "clinical:administeredDate",
     "administeredDose": "clinical:administeredDose",
     "administeredRoute": "clinical:administeredRoute",
@@ -1114,6 +1298,14 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "linkedCondition": "clinical:linkedCondition",
     # DEPRECATED (clinical v1.10). Read support only.
     "linkedConditionIds": "clinical:linkedConditionIds",
+    # -- Core v3.7 -- attachments. See the snake_case block for the rationale.
+    "hasAttachment": "cascade:hasAttachment",
+    "attachmentPath": "cascade:attachmentPath",
+    "attachmentMediaType": "cascade:attachmentMediaType",
+    "contentHash": "cascade:contentHash",
+    "hashAlgorithm": "cascade:hashAlgorithm",
+    "byteSize": "cascade:byteSize",
+    "attachmentTitle": "cascade:attachmentTitle",
 }
 
 

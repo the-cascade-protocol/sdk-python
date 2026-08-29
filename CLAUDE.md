@@ -39,19 +39,30 @@ The pre-commit hook will block commits to `src/cascade_protocol/models/` or `voc
 
 Check `VOCAB_VERSIONS` at the repo root. Compare against `spec/VOCAB_VERSIONS` to see what's behind.
 
-### Known gaps (as of 2026-08-04)
+### Known gaps (as of 2026-08-28)
 
 The clinical v1.7, coverage v1.3 and core v2.8 items previously listed here
 have all shipped. What is actually missing now:
 
 - **Deserializer registration.** `parse()` returns an EMPTY LIST — not an
-  error — for several types that serialize correctly: `Encounter`,
+  error — for several types that serialize correctly:
   `MedicationAdministration`, `ImplantedDevice`, `ImagingStudy`,
   `ClaimRecord`, `BenefitStatement`, `DenialNotice`, `AppealRecord`,
   `ClinicalSocialHistoryRecord`, `AIExtractionActivity`,
   `AIDiscardedExtraction`, `SocialHistoryConsent`. Each needs an entry in
   `_TYPE_CLASS_MAP` in `deserializer/turtle_parser.py`. Read a round trip,
   not just a serialize, when adding a class.
+  (`Encounter` was on this list and was fixed in the clinical v1.16 sync,
+  because the nine encounter fields that release adds would otherwise have
+  been write-only and their round-trip tests would have passed vacuously
+  against zero records. That is the general lesson: this gap makes any new
+  field on an unregistered type unverifiable, not merely unreadable.)
+- **`clinical:ClinicalDocument` is not modelled.** `clinical:
+  documentReferenceStatus`, `clinical:documentAuthorName` and
+  `clinical:authenticatorName` (clinical v1.16) are registered in
+  `PROPERTY_PREDICATES` and resolve through `serialize_from_dict()` and the
+  reverse map, but no dataclass carries them, so nothing writes or reads them
+  from a model. A `ClinicalDocument` model closes this in one step.
 - **`clinical:Supplement`** has a `TYPE_MAPPING` entry but no model class.
 - **`health:BloodPressureReading` / `health:HRVReading`** are not modelled, so
   the `BloodPressureData` and `HRVData` wellness containers read with an empty
@@ -66,6 +77,25 @@ the deserializer keeps accepting it (see `DEPRECATED_TYPE_ALIASES`) and the
 serializer stops emitting it. Dropping read support turns a pod full of
 records into a pod that reads as empty, which is worse than an error because
 nothing reports it.
+
+### Reading every LIVE spelling, not just the one we write
+
+The same rule applies where two spellings are BOTH current, which is the
+commoner case and has no deprecation to signal it. Several fields are declared
+by more than one vocabulary (`clinical:sourceRecordId` and
+`health:sourceRecordId`; the `coverage:` and `clinical:` spellings of a plan's
+fields), and `coverage:InsurancePlan` and `clinical:CoverageRecord` are both
+live rdf:types for one record.
+
+- Readers accept every live spelling: `ADDITIONAL_PREDICATE_SPELLINGS` and
+  `READ_ONLY_TYPE_ALIASES` in `vocabularies/namespaces.py`. Both are consumed by
+  the deserializer AND the validator; adding to one place covers both.
+- Writers keep emitting exactly one.
+
+An unregistered rdf:type is the dangerous half. A subject whose type resolves to
+nothing is SKIPPED, so it is not merely unread — it is unvalidated, and a
+fixture written in that spelling passes by never being checked. Before trusting
+a green fixture, confirm the subject was actually reached.
 
 ## Commit Conventions
 

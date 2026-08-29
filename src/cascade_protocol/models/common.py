@@ -23,6 +23,21 @@ ProvenanceType = Literal[
     "ClinicalGenerated",
     "DeviceGenerated",
     "SelfReported",
+    # Added in core v3.8. Seventeen SHACL constraints across the clinical,
+    # health and coverage shapes had accepted cascade:PatientReported since
+    # their first release, and the health vocabulary's provenance guidance
+    # instructs consumers to key on it — but the individual itself was defined
+    # nowhere in core.ttl, so this SDK (which derives its provenance set from
+    # the ontology, not from the shapes) rejected a value every shape permits.
+    # core v3.8 defines it as a DIRECT subclass of cascade:DataProvenance,
+    # rather than of ClinicalGenerated or ConsumerGenerated, because a
+    # patient's reported history reaches a record through either setting and
+    # the parent must not assert one.
+    #
+    # DISTINCT FROM "SelfReported": there the patient enters the data directly;
+    # here their account is recorded by another party or system (history
+    # related to a clinician, imported questionnaire responses).
+    "PatientReported",
     "AIExtracted",
     "AIAsserted",
     "AIGenerated",
@@ -356,6 +371,69 @@ class CascadeRecord:
     which is recorded on the interpretation property itself.
 
     Maps to ``cascade:dataAbsentReason`` in Turtle serialization.
+    """
+
+    business_identifier: list[str] | None = None
+    """
+    Identifier(s) the source system publishes for the real-world thing this
+    record describes, as opposed to the server row it happens to live in
+    (clinical v1.16).
+
+    FHIR alignment: the ``.identifier`` element (Identifier 0..*) carried by
+    EVERY FHIR resource. On an encounter this is ``Encounter.identifier``, the
+    visit or contact serial number US Core marks Must Support.
+
+    REPEATABLE, 0..*, because the source element is. A resource that publishes
+    three identifiers has three, and keeping only one discards the very value
+    another transport may key on.
+
+    VALUE FORM. Where the source states an ``Identifier.system``, the value is
+    the ratified FHIR token form ``"{system}|{value}"``
+    (https://hl7.org/fhir/R4/search.html#token), which is what makes two
+    identifiers comparable across transports without a side table. Where the
+    source states no system, the bare value is written. An implementation MUST
+    NOT invent a system.
+
+    DISTINCT FROM :attr:`source_record_id`, which holds the server-assigned
+    LOGICAL id (FHIR ``Resource.id``) and exactly one of them. The two id spaces
+    do not join: one system's logical id for a visit and another system's
+    business identifier for the same visit are different strings, and the same
+    string in the two spaces means nothing in common. Through clinical v1.15 a
+    converter had one predicate for both, so a consumer reading a value could
+    not tell which space it was in.
+
+    MIGRATION: a converter that has been writing a business identifier to
+    ``source_record_id`` must move it. A reader cannot repair the confusion
+    after the fact.
+
+    Domain-free by design, hence its place on the base record: the source
+    element exists on every FHIR resource, so restricting it to encounters would
+    be false.
+
+    Maps to ``clinical:businessIdentifier`` in Turtle serialization, one triple
+    per value.
+    """
+
+    has_attachment: list[str] | None = None
+    """
+    IRI references to :class:`~cascade_protocol.models.attachment.Attachment`
+    nodes holding binary renderings of this record (core v3.7).
+
+    FHIR alignment: ``DiagnosticReport.presentedForm`` (Attachment 0..*) and
+    ``DocumentReference.content.attachment``.
+
+    The domain is intentionally broad — any record that can be rendered as a
+    document — so core v3.7 leaves it unrestricted and constrains it by SHACL,
+    matching ``clinical:hasEncounter`` and the other cross-class edges. That is
+    why it lives on the base record rather than on one class.
+
+    Each value must be an IRI: ``cascade:HasAttachmentEdgeShape`` asserts
+    ``sh:nodeKind sh:IRI`` so that the record and the attachment can live in
+    different files. Resolve them with
+    :func:`~cascade_protocol.deserializer.turtle_parser.parse_attachments`.
+
+    Maps to ``cascade:hasAttachment`` in Turtle serialization, one triple per
+    value.
     """
 
     def to_dict(self) -> dict:

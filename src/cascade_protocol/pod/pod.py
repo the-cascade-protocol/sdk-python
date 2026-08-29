@@ -331,7 +331,15 @@ class Pod:
                 continue
             try:
                 turtle = ttl_file.read_text(encoding="utf-8")
-                records = parse(turtle, record_type)
+                # parse() may also return the core v3.7 / clinical v1.16
+                # sub-node classes, which are not CascadeRecords. _QUERY_MAP
+                # never routes to them, so this filter removes nothing in
+                # practice; it keeps the RecordSet's element type true rather
+                # than relying on that.
+                records = [
+                    r for r in parse(turtle, record_type)
+                    if isinstance(r, CascadeRecord)
+                ]
                 all_records.extend(records)
             except Exception as exc:
                 # Log but don't fail if one file is malformed
@@ -421,7 +429,13 @@ class Pod:
             path = self._path / path
 
         turtle = path.read_text(encoding="utf-8")
-        records = parse(turtle, record_type)
+        # As in query(): parse() may return the core v3.7 / clinical v1.16
+        # sub-node classes, which are not CascadeRecords. Read them with
+        # parse_attachments() / parse_encounter_participants() instead — a
+        # RecordSet is a set of health records.
+        records = [
+            r for r in parse(turtle, record_type) if isinstance(r, CascadeRecord)
+        ]
         return RecordSet(records, record_type)
 
     def __repr__(self) -> str:
