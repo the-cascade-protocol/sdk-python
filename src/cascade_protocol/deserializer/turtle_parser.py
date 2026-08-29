@@ -55,6 +55,8 @@ from cascade_protocol.models.export_manifest import (
     InteractionScenario,
     DeviceSource,
 )
+from cascade_protocol.models.attachment import Attachment
+from cascade_protocol.models.encounter import Encounter, EncounterParticipant
 from cascade_protocol.models.social_history import SocialHistoryRecord
 from cascade_protocol.models.advisory import (
     AdvisoryApplicationActivity,
@@ -66,6 +68,8 @@ from cascade_protocol.vocabularies.namespaces import (
     TYPE_MAPPING,
     TYPE_TO_MAPPING_KEY,
     DEPRECATED_TYPE_ALIASES,
+    READ_ONLY_TYPE_ALIASES,
+    ADDITIONAL_PREDICATE_SPELLINGS,
     WELLNESS_HISTORY_PROPERTIES,
     build_reverse_predicate_map,
 )
@@ -78,26 +82,9 @@ from cascade_protocol.vocabularies.namespaces import (
 # the same Python field is written under different namespaces by different
 # classes. A reader has to accept every live spelling; only the writer gets to
 # pick one.
-_ADDITIONAL_REVERSE = {
-    # VitalSign uses the clinical: namespace for these three.
-    f"{NAMESPACES['clinical']}snomedCode": "snomed_code",
-    f"{NAMESPACES['clinical']}interpretation": "interpretation",
-    # health v2.7 / clinical v1.15. Without this the verbatim source code is
-    # WRITTEN on a vital and then dropped on read, which is the same silent
-    # loss the property exists to prevent, just moved to the reader.
-    f"{NAMESPACES['clinical']}interpretationSourceCode": "interpretation_source_code",
-    # health v2.5 / core v3.4 reading-level terms. cascade:date and health:date
-    # are both live for the same field: health:DailyVitalReadingShape requires
-    # one OR the other through an sh:or precisely because two emitters spell it
-    # differently. Reading only one of them would drop readings out of the time
-    # series they belong to.
-    f"{NAMESPACES['cascade']}date": "date",
-    f"{NAMESPACES['health']}value": "value",
-    f"{NAMESPACES['health']}unit": "unit",
-    f"{NAMESPACES['cascade']}loincCode": "loinc_code",
-    # cascade:notes is the manifest spelling of health:notes.
-    f"{NAMESPACES['cascade']}notes": "notes",
-}
+# The table lives in the vocabularies module so the validator builds its
+# reverse map from the same one.
+_ADDITIONAL_REVERSE = ADDITIONAL_PREDICATE_SPELLINGS
 
 _REVERSE_PREDICATE_MAP = build_reverse_predicate_map(_ADDITIONAL_REVERSE)
 
@@ -129,7 +116,13 @@ def _build_reverse_type_map() -> dict[str, tuple[str, str]]:
     # sole emitter and existing pods contain them, so a reader that ignored
     # them would silently return zero records for data that is right there in
     # the file. Both spellings resolve to the same record type.
-    for deprecated, replacement in DEPRECATED_TYPE_ALIASES.items():
+    # Read-only spellings that are NOT deprecations: coverage:InsurancePlan is
+    # current, is what the coverage fixtures and the other SDKs write, and
+    # resolved to no known type here until it was registered -- so such a
+    # subject was skipped in silence by every reader and by the validator.
+    for deprecated, replacement in (
+        list(DEPRECATED_TYPE_ALIASES.items()) + list(READ_ONLY_TYPE_ALIASES.items())
+    ):
         dep_prefix, dep_local = deprecated.split(":", 1)
         rep_prefix, rep_local = replacement.split(":", 1)
         dep_uri = f"{NAMESPACES[dep_prefix]}{dep_local}"
@@ -153,6 +146,8 @@ _INTEGER_FIELDS = {
     "applied_triples_count",
     # -- health v2.5 / core v3.4 --
     "exercise_minutes", "stand_hours", "sample_count",
+    # -- core v3.7 -- cascade:byteSize is xsd:integer with sh:minInclusive 0.
+    "byte_size",
     # -- core v3.4 record summary counts --
     "condition_count", "medication_count", "allergy_count", "lab_result_count",
     "immunization_count", "coverage_count", "supplement_count",
@@ -177,6 +172,12 @@ _ARRAY_FIELDS = {
     # repeated predicate silently discarded every coding after the first,
     # which is the failure that is invisible in the output rather than loud.
     "icd10_code", "snomed_code", "test_code", "lab_category",
+    # -- clinical v1.16 / core v3.7 --
+    # Repeatable because the FHIR element behind each is 0..*. Reading only the
+    # first object of a repeated predicate is the failure this release exists to
+    # end, and it is invisible in the output rather than loud.
+    "encounter_reason", "business_identifier", "participant_role_code",
+    "document_author_name", "has_participant", "has_attachment",
 }
 
 # Multi-valued fields whose parsed values are SORTED before they reach the
@@ -189,7 +190,26 @@ _ARRAY_FIELDS = {
 # The v1.10-1.12 graph edges above are deliberately NOT in this set. Their
 # order is equally arbitrary, but they have shipped unsorted since v1.5.0 and
 # changing them is not part of this vocabulary sync.
-_SORTED_ARRAY_FIELDS = {"icd10_code", "snomed_code", "test_code", "lab_category"}
+#
+# The clinical v1.16 / core v3.7 fields below ARE sorted. They ship for the
+# first time in this release, so there is no prior unsorted behaviour to
+# preserve, and every one of them is a SET at source: Encounter.reasonCode,
+# .identifier, Encounter.participant.type and Encounter.participant assert no
+# order, so sorting loses nothing and makes two parses of one document compare
+# equal.
+#
+# document_author_name is the one where order arguably carries meaning --
+# clinical:providerName is written from the FIRST author where a source has
+# several. It is sorted anyway, because repeated-predicate order is not
+# recoverable from RDF in EITHER direction: rdflib yields the objects of a
+# repeated predicate in neither document nor insertion order. An importer that
+# needs the source's author order must carry it at import time; it cannot be
+# recovered from the pod, sorted or not.
+_SORTED_ARRAY_FIELDS = {
+    "icd10_code", "snomed_code", "test_code", "lab_category",
+    "encounter_reason", "business_identifier", "participant_role_code",
+    "document_author_name", "has_participant", "has_attachment",
+}
 
 # Fields whose object is an IRI in the health: namespace carrying a bare local
 # name (health:sleepQuality health:Good). Parsed back to the local name.
@@ -198,6 +218,12 @@ _HEALTH_IRI_ENUM_FIELDS = {"sleep_quality"}
 # ---------------------------------------------------------------------------
 # Record type -> model class mapping
 # ---------------------------------------------------------------------------
+
+# What a parsed subject can become. Most types are CascadeRecord subclasses;
+# the two core v3.7 / clinical v1.16 sub-node classes are deliberately not
+# (neither carries provenance or a schema version), so the reader's return type
+# is a union rather than a narrowing lie.
+ParsedNode = CascadeRecord | Attachment | EncounterParticipant
 
 _TYPE_CLASS_MAP: dict[str, type] = {
     "MedicationRecord": Medication,
@@ -221,6 +247,25 @@ _TYPE_CLASS_MAP: dict[str, type] = {
     "DailyActivitySnapshot": DailyActivitySnapshot,
     "DailySleepSnapshot": DailySleepSnapshot,
     "DailyVitalReading": DailyVitalReading,
+    # -- clinical v1.16 --
+    # Encounter was serializable but NOT registered here, so parse() returned an
+    # empty list -- not an error -- for a type this SDK writes correctly. That
+    # gap is why the nine encounter facts v1.16 adds had to be registered before
+    # they could be verified: without it they would be write-only, and a
+    # round-trip test would pass vacuously against zero records.
+    #
+    # This closes the gap for Encounter only. The other types CLAUDE.md lists
+    # under "Deserializer registration" are untouched and still read as empty.
+    "Encounter": Encounter,
+    # -- core v3.7 / clinical v1.16 sub-nodes --
+    # NOT CascadeRecord subclasses: neither carries provenance or a schema
+    # version, and neither shape requires them. They are registered here anyway,
+    # rather than being reached only through the dedicated readers below,
+    # because the alternative is exactly the silent-empty-list defect above:
+    # parse(turtle, "Attachment") would resolve the type, match nothing, and
+    # return [] for data sitting in the file.
+    "Attachment": Attachment,
+    "EncounterParticipant": EncounterParticipant,
 }
 
 # Wellness container classes (health v2.5). Not in _TYPE_CLASS_MAP: they are
@@ -462,8 +507,8 @@ def _parse_with_rdflib(turtle: str, graph: Any = None) -> list[dict[str, Any]]:
     return results
 
 
-def _dict_to_record(data: dict[str, Any]) -> CascadeRecord | None:
-    """Convert a parsed dict to the appropriate CascadeRecord subclass."""
+def _dict_to_record(data: dict[str, Any]) -> ParsedNode | None:
+    """Convert a parsed dict to the model class registered for its type."""
     record_type = data.get("type", "")
     cls = _TYPE_CLASS_MAP.get(record_type)
     if cls is None:
@@ -475,7 +520,7 @@ def _dict_to_record(data: dict[str, Any]) -> CascadeRecord | None:
     return cls(**kwargs)  # type: ignore[call-arg]
 
 
-def parse(turtle: str, record_type: str) -> list[CascadeRecord]:
+def parse(turtle: str, record_type: str) -> list[ParsedNode]:
     """
     Parse Turtle content and return typed records matching the specified type.
 
@@ -484,7 +529,11 @@ def parse(turtle: str, record_type: str) -> list[CascadeRecord]:
         record_type: Record type string (e.g., ``"MedicationRecord"``, ``"VitalSign"``).
 
     Returns:
-        List of parsed records of the specified type.
+        List of parsed records of the specified type. Almost always
+        ``CascadeRecord`` subclasses; ``"Attachment"`` and
+        ``"EncounterParticipant"`` return the two sub-node classes, which are
+        deliberately not records. Use :func:`parse_attachments` or
+        :func:`parse_encounter_participants` when you want those narrowed.
 
     Raises:
         ValueError: If the record type is unknown.
@@ -500,7 +549,7 @@ def parse(turtle: str, record_type: str) -> list[CascadeRecord]:
     all_records = _parse_with_rdflib(turtle)
     matching = [r for r in all_records if r.get("type") == record_type]
 
-    result: list[CascadeRecord] = []
+    result: list[ParsedNode] = []
     for data in matching:
         rec = _dict_to_record(data)
         if rec is not None:
@@ -508,7 +557,7 @@ def parse(turtle: str, record_type: str) -> list[CascadeRecord]:
     return result
 
 
-def parse_one(turtle: str, record_type: str) -> CascadeRecord | None:
+def parse_one(turtle: str, record_type: str) -> ParsedNode | None:
     """
     Parse a single record from Turtle content.
 
@@ -523,6 +572,68 @@ def parse_one(turtle: str, record_type: str) -> CascadeRecord | None:
     """
     results = parse(turtle, record_type)
     return results[0] if results else None
+
+
+# ---------------------------------------------------------------------------
+# Sub-nodes reached by edge (core v3.7 / clinical v1.16)
+# ---------------------------------------------------------------------------
+#
+# cascade:Attachment and clinical:EncounterParticipant are structural sub-nodes:
+# each is reached by an IRI edge from the record it belongs to
+# (cascade:hasAttachment, clinical:hasParticipant) and neither stands alone as a
+# health record. parse() reaches both through _TYPE_CLASS_MAP; these two
+# functions are the precisely-typed accessors, and exist so a caller resolving
+# an edge does not have to narrow a list it knows contains neither.
+
+
+def parse_attachments(turtle: str) -> list[Attachment]:
+    """
+    Parse every ``cascade:Attachment`` node in a document (core v3.7).
+
+    Use this to resolve the IRIs a record carries on
+    :attr:`~cascade_protocol.models.common.CascadeRecord.has_attachment`. The
+    attachment nodes may live in the same file or a different one -- the edge
+    shape requires an IRI object precisely so that they can be separated -- so
+    the caller supplies whichever document actually holds them.
+
+    Args:
+        turtle: Turtle document content.
+
+    Returns:
+        Every attachment node in the document, in no guaranteed order.
+    """
+    return [
+        rec for rec in (
+            _dict_to_record(data)
+            for data in _parse_with_rdflib(turtle)
+            if data.get("type") == "Attachment"
+        )
+        if isinstance(rec, Attachment)
+    ]
+
+
+def parse_encounter_participants(turtle: str) -> list[EncounterParticipant]:
+    """
+    Parse every ``clinical:EncounterParticipant`` node in a document
+    (clinical v1.16).
+
+    Use this to resolve the IRIs an encounter carries on
+    :attr:`~cascade_protocol.models.encounter.Encounter.has_participant`.
+
+    Args:
+        turtle: Turtle document content.
+
+    Returns:
+        Every participation node in the document, in no guaranteed order.
+    """
+    return [
+        rec for rec in (
+            _dict_to_record(data)
+            for data in _parse_with_rdflib(turtle)
+            if data.get("type") == "EncounterParticipant"
+        )
+        if isinstance(rec, EncounterParticipant)
+    ]
 
 
 # ---------------------------------------------------------------------------

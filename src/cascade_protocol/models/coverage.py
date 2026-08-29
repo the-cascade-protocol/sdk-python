@@ -39,6 +39,41 @@ class Coverage(CascadeRecord):
     Maps to ``clinical:providerName`` in Turtle serialization.
     """
 
+    status: str | None = None
+    """
+    Lifecycle state of the coverage record itself (coverage v1.5): whether the
+    plan is in force, was cancelled, is still a draft, or was entered in error.
+
+    FHIR alignment: ``Coverage.status``, code 1..1, REQUIRED binding to
+    https://hl7.org/fhir/R4/valueset-fm-status.html — ``"active"``,
+    ``"cancelled"``, ``"draft"``, ``"entered-in-error"``. FHIR marks the element
+    a MODIFIER: a cancelled or erroneous Coverage must not be read as describing
+    coverage the patient has. That is why this is not a nice-to-have — a
+    cancelled plan read as an active one is a wrong answer to "am I covered",
+    not a missing one.
+
+    Through coverage v1.4 this vocabulary had no status property for
+    ``coverage:InsurancePlan`` at all, so an importer reading a conformant
+    Coverage resource had to discard the one element FHIR requires it to carry.
+
+    NOT a substitute for, and not substituted by, ``coverage:claimStatus`` or
+    ``coverage:adjudicationStatus``: those belong to the denial and appeal
+    workflow and describe what happened to a CLAIM, not whether the plan is in
+    force. Also distinct from :attr:`effective_start` / :attr:`effective_end` —
+    a date range says when the plan is MEANT to apply, the status says what the
+    payer currently ASSERTS about the record, and a plan whose effective period
+    has not ended can still be cancelled.
+
+    The VALUE is validated (the FHIR binding is required, and no pod has ever
+    carried this property, so a constraint cannot invalidate existing data). Its
+    PRESENCE deliberately is not: no producer has yet had the chance to write
+    it.
+
+    Maps to ``coverage:status`` in Turtle serialization — NOT the
+    ``health:status`` the shared ``status`` field name is bound to elsewhere;
+    see the serializer's type-specific overrides.
+    """
+
     member_id: str | None = None
     """
     Member identifier for the insured individual.

@@ -49,6 +49,8 @@ from cascade_protocol.models.export_manifest import (
     InteractionScenario,
     DeviceSource,
 )
+from cascade_protocol.models.attachment import Attachment
+from cascade_protocol.models.encounter import EncounterParticipant
 from cascade_protocol.vocabularies.namespaces import (
     NAMESPACES,
     TYPE_MAPPING,
@@ -104,6 +106,18 @@ _TYPE_PREDICATE_OVERRIDES: dict[str, dict[str, str]] = {
     # cascade:notes, not health:notes: the manifest spelling is the core one.
     "RecordSummary": {"notes": "cascade:notes"},
     "_camel_RecordSummary": {"notes": "cascade:notes"},
+    # -- coverage v1.5 --------------------------------------------------------
+    # "status" is bound to health:status globally (a Condition's clinical
+    # status). On a coverage record the same field name carries a DIFFERENT
+    # FHIR element -- Coverage.status, a modifier element bound REQUIRED to
+    # fm-status -- so the predicate is overridden per record type rather than
+    # the field being renamed. Both accepted type spellings are listed: the
+    # Coverage dataclass defaults to "InsurancePlan", but "CoverageRecord" is a
+    # live spelling in TYPE_TO_MAPPING_KEY and a caller may set it.
+    "InsurancePlan": {"status": "coverage:status"},
+    "_camel_InsurancePlan": {"status": "coverage:status"},
+    "CoverageRecord": {"status": "coverage:status"},
+    "_camel_CoverageRecord": {"status": "coverage:status"},
 }
 
 # Fields whose values should be serialized as URI references (angle-bracket enclosed)
@@ -159,8 +173,28 @@ _MULTI_VALUE_URI_FIELDS_CAMEL: set[str] = {
 # The same, for fields whose values are plain string literals rather than IRIs.
 # FHIR R4 Observation.category is 0..*
 # (https://hl7.org/fhir/R4/observation-definitions.html#Observation.category).
-_MULTI_VALUE_LITERAL_FIELDS_SNAKE: set[str] = {"lab_category"}
-_MULTI_VALUE_LITERAL_FIELDS_CAMEL: set[str] = {"labCategory"}
+#
+# clinical v1.16 adds four more repeatable string properties, each because the
+# FHIR element behind it is 0..* and a single-valued predicate was discarding
+# everything after the first:
+#   encounter_reason        Encounter.reasonCode
+#   business_identifier     .identifier, on every FHIR resource
+#   participant_role_code   Encounter.participant.type (extensibly bound)
+#   document_author_name    DocumentReference.author
+_MULTI_VALUE_LITERAL_FIELDS_SNAKE: set[str] = {
+    "lab_category",
+    "encounter_reason",
+    "business_identifier",
+    "participant_role_code",
+    "document_author_name",
+}
+_MULTI_VALUE_LITERAL_FIELDS_CAMEL: set[str] = {
+    "labCategory",
+    "encounterReason",
+    "businessIdentifier",
+    "participantRoleCode",
+    "documentAuthorName",
+}
 
 # Fields whose values are arrays and should be serialized as repeated predicates
 # (for URI arrays) or RDF lists (for string arrays).
@@ -172,6 +206,13 @@ _ARRAY_FIELDS_SNAKE: set[str] = {
     "indication_reference",
     "parsed_indication_reference",
     "linked_condition",
+    # clinical v1.16 / core v3.7 sub-node edges. Same shape as the edges above:
+    # repeated IRI objects. Both point at a node that lives in its own subject
+    # block, and for hasAttachment the IRI is mandatory --
+    # cascade:HasAttachmentEdgeShape asserts sh:nodeKind sh:IRI so the record
+    # and the attachment can live in different files.
+    "has_participant",
+    "has_attachment",
 }
 
 _ARRAY_FIELDS_CAMEL: set[str] = {
@@ -181,6 +222,8 @@ _ARRAY_FIELDS_CAMEL: set[str] = {
     "indicationReference",
     "parsedIndicationReference",
     "linkedCondition",
+    "hasParticipant",
+    "hasAttachment",
 }
 
 # Fields that are date-only typed (xsd:date).
@@ -250,6 +293,18 @@ _DECIMAL_TYPED_FIELDS_CAMEL: set[str] = {
     "activeEnergyKcal",
     "durationHours",
 }
+
+# Fields whose SHACL shape declares xsd:anyURI. clinical:encounterClassSystem's
+# rdfs:range is xsd:anyURI, and its property shape is an sh:or over anyURI and
+# string "because serializers differ on which of the two they write for a
+# URI-valued literal". This one writes the declared range: it is a code-system
+# URI, and the conformance fixture carries it typed.
+#
+# A LITERAL, not an angle-bracket IRI. The value is the object of a
+# DatatypeProperty, so emitting <...> would make it a resource reference and
+# violate the shape's datatype constraint on both branches of the sh:or.
+_ANYURI_TYPED_FIELDS_SNAKE: set[str] = {"encounter_class_system"}
+_ANYURI_TYPED_FIELDS_CAMEL: set[str] = {"encounterClassSystem"}
 
 # Fields whose value is a bare local name that must be emitted as an IRI in
 # the health: namespace. health:sleepQuality is written ``health:Good`` by
@@ -459,6 +514,7 @@ def _serialize_dict(
     )
     integer_typed = _INTEGER_TYPED_FIELDS_CAMEL if camel else _INTEGER_TYPED_FIELDS_SNAKE
     decimal_typed = _DECIMAL_TYPED_FIELDS_CAMEL if camel else _DECIMAL_TYPED_FIELDS_SNAKE
+    anyuri_typed = _ANYURI_TYPED_FIELDS_CAMEL if camel else _ANYURI_TYPED_FIELDS_SNAKE
     type_datetime = _TYPE_DATETIME_FIELDS.get(record_type, set())
     overrides = _TYPE_PREDICATE_OVERRIDES.get(f"_camel_{record_type}" if camel else record_type, {})
 
@@ -570,6 +626,11 @@ def _serialize_dict(
         # Nested blank nodes (PatientProfile sub-objects)
         if isinstance(value, dict):
             _emit_blank_node(pred, key, value)
+            return
+
+        # xsd:anyURI-typed literals (clinical v1.16 encounterClassSystem).
+        if isinstance(value, str) and key in anyuri_typed:
+            triple_lines.append(f'    {pred} "{_escape_turtle_string(value)}"^^xsd:anyURI')
             return
 
         # Date-only fields (xsd:date)
@@ -776,6 +837,30 @@ def serialize_daily_sleep_snapshot(snapshot: DailySleepSnapshot) -> str:
 def serialize_daily_vital_reading(reading: DailyVitalReading) -> str:
     """Serialize a DailyVitalReading record to Turtle (health v2.5)."""
     return serialize(reading)
+
+
+def serialize_attachment(attachment: Attachment) -> str:
+    """
+    Serialize an :class:`Attachment` metadata node to Turtle (core v3.7).
+
+    Written as its own subject block rather than inline, because
+    ``cascade:HasAttachmentEdgeShape`` requires the object of
+    ``cascade:hasAttachment`` to be an IRI so that the record and the
+    attachment can live in different files.
+    """
+    return _serialize_dataclass(attachment)  # type: ignore[arg-type]
+
+
+def serialize_encounter_participant(participant: EncounterParticipant) -> str:
+    """
+    Serialize an :class:`EncounterParticipant` node to Turtle (clinical v1.16).
+
+    A participation is a structural sub-node of an encounter, reached by
+    ``clinical:hasParticipant``. It is written as its own subject block for the
+    reason given on the class: one treatment for both v3.7/v1.16 sub-node
+    classes, and ``Attachment``'s edge shape leaves no choice for that one.
+    """
+    return _serialize_dataclass(participant)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

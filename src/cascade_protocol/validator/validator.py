@@ -85,6 +85,24 @@ _REQUIRED_FIELDS_CAMEL: dict[str, list[str]] = {
     "ExportManifest": ["type", "title", "created", "schemaVersion"],
     "RecordSummary": ["type", "domain"],
     "InteractionScenario": ["type", "title", "involvedResources"],
+    # -- core v3.7 -- attachment metadata.
+    #    cascade:AttachmentShape requires exactly the three facts without which
+    #    an attachment node cannot do its job, all at sh:Violation: the path
+    #    (without it there is nothing to open), the digest (without it nothing
+    #    distinguishes the right bytes from any other bytes at that path) and
+    #    the algorithm (without it the digest cannot be recomputed and so cannot
+    #    be checked, which makes the digest decorative).
+    #    'id' IS required, unlike the manifest sub-nodes: an attachment is
+    #    reached by cascade:hasAttachment, whose edge shape asserts
+    #    sh:nodeKind sh:IRI so the bytes' metadata can live in another file.
+    #    Media type is NOT here: its presence is only sh:Warning.
+    "Attachment": ["id", "type", "attachmentPath", "contentHash", "hashAlgorithm"],
+    # -- clinical v1.16 -- one participation in an encounter.
+    #    clinical:EncounterParticipantShape requires NO field: FHIR makes every
+    #    sub-element of Encounter.participant optional, and a participation that
+    #    states only a role is still a fact the source asserted. 'id' is
+    #    required because this SDK writes participations as IRI subjects.
+    "EncounterParticipant": ["id", "type"],
 }
 
 _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
@@ -127,6 +145,9 @@ _REQUIRED_FIELDS_SNAKE: dict[str, list[str]] = {
     "ExportManifest": ["type", "title", "created", "schema_version"],
     "RecordSummary": ["type", "domain"],
     "InteractionScenario": ["type", "title", "involved_resources"],
+    # -- core v3.7 / clinical v1.16 -- see the camelCase table for the rationale.
+    "Attachment": ["id", "type", "attachment_path", "content_hash", "hash_algorithm"],
+    "EncounterParticipant": ["id", "type"],
 }
 
 _VALID_PROVENANCE_TYPES = frozenset({
@@ -221,6 +242,90 @@ _VALID_DATA_ABSENT_REASONS = frozenset({
 # sh:Violation. Only vital signs: clinical:VitalSignShape carries the ratchet.
 _WARNING_ONLY_INTERPRETATION_TYPES = frozenset({"VitalSign"})
 
+# coverage:status (coverage v1.5), the four FHIR R4 fm-status codes.
+#
+# An ERROR rather than a warning, and the asymmetry with coverage:coverageType
+# (checked nowhere, because FHIR binds Coverage.type EXTENSIBLY) is deliberate:
+# FHIR binds Coverage.status REQUIRED, where a payer may NOT conformantly send
+# an outside code, and marks the element a MODIFIER. A cancelled plan read as an
+# active one is a wrong answer to "am I covered", not a missing one. No pod has
+# ever carried this property, so a constraint here cannot invalidate data that
+# already exists -- which is what lets it be an error in its first release
+# rather than going through the core v3.5 warning ratchet.
+#
+# PRESENCE is deliberately not required: no producer has yet had the chance to
+# write it, and a minCount would turn every existing plan record red.
+_VALID_COVERAGE_STATUS = frozenset({
+    "active", "cancelled", "draft", "entered-in-error",
+})
+
+# The record types that carry coverage:status. The Coverage dataclass serves
+# both spellings, and the check follows the record type because the bare field
+# name "status" is bound to health:status on a Condition, where these four codes
+# would be wrong.
+_COVERAGE_RECORD_TYPES = frozenset({"InsurancePlan", "CoverageRecord"})
+
+# clinical:documentReferenceStatus (clinical v1.16), FHIR R4
+# DocumentReference.status. sh:Warning on the shape, so a warning here.
+#
+# DISTINCT from clinical:status, which on a document carries
+# DocumentReference.docStatus. The two share the code "entered-in-error" and it
+# means different things in each -- the reference was filed in error, versus the
+# clinical content is repudiated -- which is why folding them onto one predicate
+# was ambiguous exactly where ambiguity costs most.
+_VALID_DOCUMENT_REFERENCE_STATUS = frozenset({
+    "current", "superseded", "entered-in-error",
+})
+
+# cascade:AttachmentShape patterns, verbatim from the shape.
+#
+# The path is stated POSITIVELY as "/"-separated segments each beginning with an
+# alphanumeric, in the character set pod-structure.md requires of Pod filenames.
+# That form excludes an absolute path, a URL and any ".." segment by
+# construction. It is not written as an exclusion because SHACL evaluates
+# sh:pattern with XPath fn:matches, whose XSD 1.1 regular expressions have no
+# lookahead.
+_ATTACHMENT_PATH_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9._-]*(/[a-zA-Z0-9][a-zA-Z0-9._-]*)*$"
+
+# Lowercase hex, at least 32 characters, no algorithm prefix. Uppercase hex and
+# base64 are rejected because this value is also the file's NAME: base64
+# contains "/" and is case-sensitive, and two spellings of one digest defeat the
+# deduplication content addressing exists to provide.
+_CONTENT_HASH_PATTERN = r"^[0-9a-f]{32,}$"
+
+# A token from the IANA Named Information Hash Algorithm Registry (RFC 6920).
+# Deliberately a pattern and NOT an enum: the registry grows, and an enum would
+# have to be revised to accept a stronger hash, which is the wrong direction for
+# a property whose whole purpose is to let the algorithm be replaced.
+_HASH_ALGORITHM_PATTERN = r"^[a-z0-9][a-z0-9-]*$"
+
+# RFC 6838 type/subtype.
+_MEDIA_TYPE_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$"
+
+# Single-valued properties added in clinical v1.16 / core v3.7, as
+# (camelCase, snake_case, record types). Each is sh:maxCount 1 on its shape
+# because the FHIR element behind it is 0..1. Their repeatable siblings --
+# encounterReason, businessIdentifier, participantRoleCode, documentAuthorName
+# -- are deliberately absent: those are 0..* at source, and capping them is the
+# defect this release exists to remove.
+_SINGLE_VALUED_FIELDS: list[tuple[str, str, frozenset[str]]] = [
+    ("encounterClassDisplay", "encounter_class_display", frozenset({"Encounter"})),
+    ("encounterClassSystem", "encounter_class_system", frozenset({"Encounter"})),
+    ("admitSource", "admit_source", frozenset({"Encounter"})),
+    ("dischargeDisposition", "discharge_disposition", frozenset({"Encounter"})),
+    ("participantName", "participant_name", frozenset({"EncounterParticipant"})),
+    ("participantRole", "participant_role", frozenset({"EncounterParticipant"})),
+    ("participantSpecialty", "participant_specialty", frozenset({"EncounterParticipant"})),
+    ("attachmentMediaType", "attachment_media_type", frozenset({"Attachment"})),
+    ("attachmentTitle", "attachment_title", frozenset({"Attachment"})),
+    ("byteSize", "byte_size", frozenset({"Attachment"})),
+]
+
+# The snake_case fields whose cardinality _SINGLE_VALUED_FIELDS checks. The
+# Turtle reader has to keep repeated objects for exactly these as a list, or the
+# check is unreachable from a document and only fires on a dict.
+_CARDINALITY_CHECKED_FIELDS = frozenset(snake for _c, snake, _t in _SINGLE_VALUED_FIELDS)
+
 # Numeric bounds asserted by the health v2.5 daily-snapshot shapes and the
 # core v3.4 record-summary shape. (field, record types, lower, upper).
 # A day count larger than a decade of daily readings is a unit error, not a
@@ -245,6 +350,9 @@ _NUMERIC_BOUNDS: list[tuple[str, str, frozenset[str], float, float | None]] = [
     ("bloodPressureDays", "blood_pressure_days", frozenset({"RecordSummary"}), 0, 36500),
     ("activityDays", "activity_days", frozenset({"RecordSummary"}), 0, 36500),
     ("sleepDays", "sleep_days", frozenset({"RecordSummary"}), 0, 36500),
+    # core v3.7: cascade:AttachmentShape asserts sh:minInclusive 0. A negative
+    # byte size is not a small file, it is a sign error at an import boundary.
+    ("byteSize", "byte_size", frozenset({"Attachment"}), 0, None),
 ]
 
 # ---------------------------------------------------------------------------
@@ -497,6 +605,48 @@ def _validate_enums_and_bounds(
                 "accepted for the migration window only"
             )
 
+    # -- coverage v1.5 -----------------------------------------------------
+    if record_type in _COVERAGE_RECORD_TYPES:
+        cov_status = data.get("status")
+        if cov_status and str(cov_status) not in _VALID_COVERAGE_STATUS:
+            errors.append(
+                f"Invalid status: {cov_status!r}. Coverage status must be one of "
+                f"the FHIR R4 fm-status codes: "
+                f"{sorted(_VALID_COVERAGE_STATUS)}"
+            )
+
+    # -- clinical v1.16 ----------------------------------------------------
+    # Keyed on the PROPERTY, not the record type: clinical:ClinicalDocument is
+    # not modelled in this SDK, so there is no type string to key on, and a
+    # check that waited for one would never fire.
+    doc_ref_status = _get_either(
+        data, "documentReferenceStatus", "document_reference_status"
+    )
+    if doc_ref_status and str(doc_ref_status) not in _VALID_DOCUMENT_REFERENCE_STATUS:
+        warnings.append(
+            f"documentReferenceStatus {doc_ref_status!r} is outside the FHIR R4 "
+            f"DocumentReferenceStatus value set "
+            f"{sorted(_VALID_DOCUMENT_REFERENCE_STATUS)}. This is the status of "
+            f"the REFERENCE, not of the document content: the content's status "
+            f"goes on clinical:status"
+        )
+
+    # -- core v3.7 ---------------------------------------------------------
+    if record_type == "Attachment":
+        _validate_attachment(data, errors, warnings)
+
+    # Cardinality: every entry is sh:maxCount 1 on its shape.
+    for camel, snake, types in _SINGLE_VALUED_FIELDS:
+        if record_type not in types:
+            continue
+        raw = _get_either(data, camel, snake)
+        if isinstance(raw, (list, tuple, set)) and len(raw) > 1:
+            errors.append(
+                f"Invalid {camel}: {list(raw)!r}. At most one value is "
+                f"permitted, matching the 0..1 cardinality of the FHIR element "
+                f"it is converted from"
+            )
+
     if record_type == "InteractionScenario":
         severity = data.get("severity")
         if severity and str(severity) not in _VALID_INTERACTION_SEVERITY:
@@ -524,6 +674,66 @@ def _validate_enums_and_bounds(
     return errors, warnings
 
 
+def _validate_attachment(
+    data: dict[str, Any], errors: list[str], warnings: list[str]
+) -> None:
+    """
+    Pattern checks from ``cascade:AttachmentShape`` (core v3.7).
+
+    Kept out of :func:`_validate_enums_and_bounds`'s main body because all four
+    constraints belong to one class and read as one argument: an attachment must
+    be findable, its bytes must be identifiable, and the digest that identifies
+    them must be checkable.
+    """
+    import re
+
+    path = _get_either(data, "attachmentPath", "attachment_path")
+    if path and not re.match(_ATTACHMENT_PATH_PATTERN, str(path)):
+        errors.append(
+            f"Invalid attachmentPath: {path!r}. Must be a pod-relative path "
+            f"whose segments each begin with an alphanumeric and use only "
+            f"[a-zA-Z0-9._-]. That form excludes an absolute path, a URL and "
+            f"any '..' segment: the first two break when a Pod is copied, and "
+            f"the third lets an attachment reference read a file outside the Pod"
+        )
+
+    digest = _get_either(data, "contentHash", "content_hash")
+    if digest and not re.match(_CONTENT_HASH_PATTERN, str(digest)):
+        errors.append(
+            f"Invalid contentHash: {digest!r}. Must be lowercase hexadecimal of "
+            f"at least 32 characters with no algorithm prefix. Uppercase hex "
+            f"and base64 are rejected because this value is also the file's "
+            f"name: base64 contains '/' and is case-sensitive, and two "
+            f"spellings of one digest defeat content addressing"
+        )
+
+    algorithm = _get_either(data, "hashAlgorithm", "hash_algorithm")
+    if algorithm and not re.match(_HASH_ALGORITHM_PATTERN, str(algorithm)):
+        errors.append(
+            f"Invalid hashAlgorithm: {algorithm!r}. Must be a token from the "
+            f"IANA Named Information Hash Algorithm Registry (RFC 6920), such "
+            f"as 'sha-256'"
+        )
+
+    media_type = _get_either(data, "attachmentMediaType", "attachment_media_type")
+    if media_type is None:
+        # PRESENCE is only sh:Warning: bytes with no stated type are awkward to
+        # render, not lost, so a missing one must not invalidate the record that
+        # points at them. The FORM, below, is a violation.
+        warnings.append(
+            "An attachment should state its media type; without one, the only "
+            "way to render the stored bytes is guesswork"
+        )
+    elif not isinstance(media_type, (list, tuple, set)) and not re.match(
+        _MEDIA_TYPE_PATTERN, str(media_type)
+    ):
+        errors.append(
+            f"Invalid attachmentMediaType: {media_type!r}. Must be an IANA "
+            f"media type in RFC 6838 type/subtype form, for example "
+            f"'application/pdf'"
+        )
+
+
 def _validate_turtle_structural(turtle: str) -> tuple[list[str], list[str]]:
     """
     Parse Turtle and validate extracted records structurally.
@@ -534,7 +744,14 @@ def _validate_turtle_structural(turtle: str) -> tuple[list[str], list[str]]:
         import rdflib
         from rdflib import Graph, RDF, URIRef, Literal
         from rdflib.namespace import XSD
-        from cascade_protocol.vocabularies.namespaces import NAMESPACES, TYPE_MAPPING, build_reverse_predicate_map
+        from cascade_protocol.vocabularies.namespaces import (
+            NAMESPACES,
+            TYPE_MAPPING,
+            DEPRECATED_TYPE_ALIASES,
+            READ_ONLY_TYPE_ALIASES,
+            ADDITIONAL_PREDICATE_SPELLINGS,
+            build_reverse_predicate_map,
+        )
 
         g = Graph()
         g.parse(data=turtle, format="turtle")
@@ -560,7 +777,23 @@ def _validate_turtle_structural(turtle: str) -> tuple[list[str], list[str]]:
                     record_type_str = _mk_to_rt.get(mapping_key, local_name)
                     reverse_type[f"{ns_uri}{local_name}"] = record_type_str
 
-        reverse_pred = build_reverse_predicate_map()
+        # Accept every live rdf:type spelling, exactly as the deserializer does.
+        # Without this a coverage:InsurancePlan subject resolved to no known
+        # type and was SKIPPED, so a coverage fixture could not fail validation
+        # because it was never validated.
+        for _alias, _canonical in (
+            list(DEPRECATED_TYPE_ALIASES.items()) + list(READ_ONLY_TYPE_ALIASES.items())
+        ):
+            _ap, _al = _alias.split(":", 1)
+            _cp, _cl = _canonical.split(":", 1)
+            _auri = f"{NAMESPACES[_ap]}{_al}"
+            _curi = f"{NAMESPACES[_cp]}{_cl}"
+            if _curi in reverse_type and _auri not in reverse_type:
+                reverse_type[_auri] = reverse_type[_curi]
+
+        # Same extras the deserializer uses. Passing nothing here meant a
+        # predicate the reader resolved correctly was validated as if absent.
+        reverse_pred = build_reverse_predicate_map(ADDITIONAL_PREDICATE_SPELLINGS)
         errors: list[str] = []
         warnings: list[str] = []
 
@@ -589,8 +822,21 @@ def _validate_turtle_structural(turtle: str) -> tuple[list[str], list[str]]:
                         record["data_provenance"] = obj_str[len(CASCADE_NS):]
                     else:
                         record["data_provenance"] = obj_str
-                elif isinstance(o, Literal):
-                    record[py_key] = str(o)
+                elif py_key in _CARDINALITY_CHECKED_FIELDS:
+                    # A REPEATED predicate has to survive as a list, or a
+                    # maxCount check can never see the second value: the plain
+                    # assignment below overwrites, so two participant names
+                    # arrived here as one and the record validated clean.
+                    #
+                    # Narrowed to the fields whose cardinality is actually
+                    # checked, so no existing single-valued read changes shape.
+                    prior = record.get(py_key)
+                    if prior is None:
+                        record[py_key] = str(o)
+                    elif isinstance(prior, list):
+                        prior.append(str(o))
+                    else:
+                        record[py_key] = [prior, str(o)]
                 else:
                     record[py_key] = str(o)
 

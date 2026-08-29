@@ -38,6 +38,8 @@ from cascade_protocol.models import (
     FamilyHistory,
     Coverage,
     Encounter,
+    EncounterParticipant,
+    Attachment,
     MedicationAdministration,
     ImplantedDevice,
     ImagingStudy,
@@ -119,6 +121,8 @@ from cascade_protocol.serializer.turtle_serializer import (
     serialize_daily_activity_snapshot,
     serialize_daily_sleep_snapshot,
     serialize_daily_vital_reading,
+    serialize_attachment,
+    serialize_encounter_participant,
     serialize_export_manifest,
 )
 from cascade_protocol.deserializer.turtle_parser import (
@@ -126,6 +130,8 @@ from cascade_protocol.deserializer.turtle_parser import (
     parse_one,
     parse_wellness_container,
     parse_export_manifest,
+    parse_attachments,
+    parse_encounter_participants,
 )
 from cascade_protocol.validator.validator import (
     validate,
@@ -176,6 +182,8 @@ __all__ = [
     "FamilyHistory",
     "Coverage",
     "Encounter",
+    "EncounterParticipant",
+    "Attachment",
     "MedicationAdministration",
     "ImplantedDevice",
     "ImagingStudy",
@@ -256,12 +264,16 @@ __all__ = [
     "serialize_daily_activity_snapshot",
     "serialize_daily_sleep_snapshot",
     "serialize_daily_vital_reading",
+    "serialize_attachment",
+    "serialize_encounter_participant",
     "serialize_export_manifest",
     # Deserialization
     "parse",
     "parse_one",
     "parse_wellness_container",
     "parse_export_manifest",
+    "parse_attachments",
+    "parse_encounter_participants",
     # Validation
     "validate",
     "validate_dict",

@@ -5,6 +5,48 @@ All notable changes to `cascade-protocol` (Python SDK) will be documented in thi
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-08-28
+
+Vocabulary sync: core v3.7, health v2.8, clinical v1.16, coverage v1.5. Twenty-four terms.
+
+Minor, not major: everything here is additive. No existing output moves, no value this package accepted becomes invalid, and every reader change accepts a spelling that was previously DROPPED rather than rejecting one that was previously read.
+
+### Added
+
+Core v3.7 — attachments, so a Pod can hold the documents its records point at:
+- `Attachment` model (`cascade:Attachment`), plus `cascade:hasAttachment`, `attachmentPath`, `attachmentMediaType`, `contentHash`, `hashAlgorithm`, `byteSize` and `attachmentTitle` registered in both key spellings. `serialize_attachment()` and `parse_attachments()` are exported from the package root.
+- `Attachment` is a plain dataclass, deliberately NOT a `CascadeRecord`: it carries no `cascade:dataProvenance` and no `cascade:schemaVersion`, and `cascade:AttachmentShape` requires neither, so subclassing would have invented two required fields the vocabulary does not define for it.
+- It is written as its own IRI-identified subject rather than an inline blank node, because `cascade:HasAttachmentEdgeShape` asserts `sh:nodeKind sh:IRI` precisely so the record and the attachment can live in different files — which is how a Pod partitioned by record type stores them.
+- `has_attachment` sits on `CascadeRecord`, because core v3.7 leaves the edge's domain unrestricted ("any record that can be rendered as a document") and constrains it by SHACL, matching `clinical:hasEncounter`.
+- The structural validator enforces the shape verbatim: path, digest and algorithm are required; the path pattern excludes an absolute path, a URL and any `..` segment by construction; the digest must be lowercase hex of at least 32 characters, because that value is also the FILENAME and two spellings of one digest defeat the deduplication content addressing exists to provide. `hashAlgorithm` is a PATTERN and not an enum: RFC 6920's registry grows, and an enum would have to be revised to accept a stronger hash, which is the wrong direction for a property whose purpose is to let the algorithm be replaced. Media type splits across two severities — its FORM is an error, its PRESENCE only a warning, since bytes with no stated type are awkward to render but not lost.
+
+Clinical v1.16 — the fields a conformant R4 export sends and an Encounter had nowhere to keep:
+- Nine encounter terms on `Encounter`: `encounter_class_display` and `encounter_class_system` (the other two members of the `Encounter.class` Coding — the binding is only extensible, so a local code with no display and no system is unreadable AND unmappable), `encounter_reason` (repeatable, because `Encounter.reasonCode` is 0..*), `admit_source` and `discharge_disposition` (the two `Encounter.hospitalization` fields, the only structured signal separating an admission from an office visit), and `has_participant`.
+- `EncounterParticipant` model (`clinical:EncounterParticipant`) with `participant_name`, `participant_role`, `participant_role_code` (repeatable) and `participant_specialty`. `serialize_encounter_participant()` and `parse_encounter_participants()` are exported. Participation is a STRUCTURE because a flat family of role-qualified predicates cannot represent two participants in the same role and cannot carry a local role code from an extensibly-bound source vocabulary at all. Specialty is on the participation, not a person, because in FHIR it is a property of the ROLE.
+- `encounter_class_system` is written `^^xsd:anyURI`, its declared range, as a LITERAL — the property is a DatatypeProperty, so an angle-bracket IRI would violate the shape on both branches of its `sh:or`.
+- `business_identifier` on `CascadeRecord`: domain-free and repeatable, because FHIR's `.identifier` is 0..* on every resource. Values are the ratified `{system}|{value}` token form where the source states a system. Distinct from `source_record_id`, which holds the server-assigned LOGICAL id and stays single-valued. Migration: a converter that has been writing a business identifier to `source_record_id` must move it; the two spaces do not join and a consumer cannot repair the confusion after the fact.
+- `clinical:documentReferenceStatus`, `clinical:documentAuthorName` and `clinical:authenticatorName` registered in both spellings. An out-of-set reference status warns rather than errors, matching `sh:Warning` on the shape. See Known gaps: these three are registered but not reachable from any model.
+
+Coverage v1.5:
+- `Coverage.status` (`coverage:status`), the FHIR R4 fm-status codes: active, cancelled, draft, entered-in-error. The bare field name `status` is bound to `health:status` (a Condition's clinical status), so the coverage spelling is a type-specific serializer override plus an explicit reverse mapping rather than a rename. The VALUE is an error, not a warning — FHIR binds `Coverage.status` REQUIRED, and no pod has ever carried the property, so a constraint here cannot invalidate existing data. PRESENCE is deliberately not required: no producer has yet had the chance to write it.
+
+Health v2.8 adds no term. It gains three shape bindings only, so the version row moves and there is nothing to implement.
+
+### Fixed
+
+- `parse()` no longer returns an empty list for `Encounter`. It serialized correctly but was never registered in `_TYPE_CLASS_MAP`, so a pod full of encounters read as a pod with none — worse than an error, because nothing reported it. This had to be fixed before the nine new encounter fields could be verified at all: without it they would have been write-only and a round-trip test would have passed vacuously against zero records. The other types listed under Known gaps are untouched.
+- `coverage:InsurancePlan` now resolves as an rdf:type. It is CURRENT, not deprecated — it is the coverage vocabulary's own class name and what the conformance fixtures and the other SDKs write — but it resolved to no known type here, so such a subject was SKIPPED in silence by the reader and by the structural validator alike. A coverage fixture was not passing validation; it was never being validated. The write side is unchanged: this SDK still emits `clinical:CoverageRecord`.
+- The reader accepts the coverage vocabulary's own spellings of `providerName`, `memberId`, `groupNumber`, `planName`, `planType`, `coverageType` and `subscriberId`, and `clinical:sourceRecordId`. Every one is a property its vocabulary declares and the spelling the fixtures carry; all were previously dropped on read. Writers are unchanged.
+- The structural validator builds its reverse predicate map from the same table the deserializer uses. It previously passed no extras, so a predicate the reader resolved correctly was validated as if absent.
+- A repeated predicate survives as a list for the fields whose cardinality is checked. The Turtle reader overwrote on repeat, so two `clinical:participantName` values arrived as one and a record that violates `sh:maxCount 1` validated clean.
+
+### Known gaps
+
+- `clinical:ClinicalDocument` is not modelled. The three v1.16 document properties are registered and resolve through `serialize_from_dict()` and the reverse predicate map, but no dataclass carries them, so nothing reads or writes them from a model. A document model is the follow-up.
+- `parse()` still returns an empty list for `MedicationAdministration`, `ImplantedDevice`, `ImagingStudy`, `ClaimRecord`, `BenefitStatement`, `DenialNotice`, `AppealRecord`, `ClinicalSocialHistoryRecord`, `AIExtractionActivity`, `AIDiscardedExtraction` and `SocialHistoryConsent`. Predates this release; `Encounter` is removed from that list here.
+- Repeated-predicate ORDER is not recoverable from RDF in either direction, so the source's author order behind `clinical:providerName` ("written from the first author") cannot be reconstructed from a pod. An importer that needs it must carry it at import time.
+- `conformance/fixtures/coverage/coverage-status-active.VALID.ttl` does not pass this SDK's structural validator, for a reason unrelated to coverage v1.5: it declares `cascade:PatientReported`, a provenance individual that appears in seventeen `sh:in` lists across the shapes files but is defined nowhere in `core.ttl`. This SDK enforces the set `core.ttl` defines. Reported upstream rather than papered over by admitting an undefined term.
+
 ## [3.0.0] - 2026-08-15
 
 Vocabulary sync: core v3.6, health v2.7, clinical v1.15.
