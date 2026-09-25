@@ -802,6 +802,30 @@ PROPERTY_PREDICATES: dict[str, str] = {
     "document_author_name": "clinical:documentAuthorName",
     "authenticator_name": "clinical:authenticatorName",
 
+    # -- Clinical v1.20 -- narrative text and document type --
+    #    clinical:narrativeText was declared in an earlier clinical release
+    #    (FHIR Narrative.text.div / C-CDA section text, markup stripped) but
+    #    was never registered here, so it round-tripped through neither the
+    #    serializer nor the reader. v1.20 restates its comment as the
+    #    canonical spelling; this SDK now registers the predicate. The
+    #    migration-window reader fallback for the two undeclared legacy
+    #    spellings (cascade:narrativeText, clinical:content) is NOT
+    #    implemented here, matching this predicate-registration-only sync.
+    "narrative_text": "clinical:narrativeText",
+    #    clinical:documentType (NEW in v1.20) is a human-readable label
+    #    (FHIR DocumentReference.type.text / a C-CDA section title) for a
+    #    person to read. It is a different property with a different value
+    #    space from the core vocabulary's cascade:documentType, a closed set
+    #    of lowercase slugs software branches on (summarization,
+    #    progress-note, and so on); neither is deprecated in favour of the
+    #    other. This SDK has never registered cascade:documentType under any
+    #    key (confirmed by grep before this change), so there is no
+    #    collision today, but the two must stay on distinct keys: this one is
+    #    "document_type" and is reserved for the clinical: label only. A
+    #    future registration of the cascade: slug needs its own key (e.g.
+    #    "document_type_slug"), never this one.
+    "document_type": "clinical:documentType",
+
     # -- MedicationAdministration predicates (clinical: vocabulary) --
     "administered_date": "clinical:administeredDate",
     "administered_dose": "clinical:administeredDose",
@@ -1161,6 +1185,10 @@ PROPERTY_PREDICATES_CAMEL: dict[str, str] = {
     "documentReferenceStatus": "clinical:documentReferenceStatus",
     "documentAuthorName": "clinical:documentAuthorName",
     "authenticatorName": "clinical:authenticatorName",
+    # -- Clinical v1.20 -- narrative text and document type. See the
+    #    snake_case block above for the cascade:documentType distinction.
+    "narrativeText": "clinical:narrativeText",
+    "documentType": "clinical:documentType",
     "administeredDate": "clinical:administeredDate",
     "administeredDose": "clinical:administeredDose",
     "administeredRoute": "clinical:administeredRoute",

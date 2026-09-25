@@ -225,3 +225,37 @@ pots=1.4
 #     vocabulary, so a wrong claim here is silent. The rest of #32 (clinical
 #     v1.17, coverage v1.6, a shapes-only nested-severity fix) is NOT
 #     implemented and those rows deliberately stay at 1.16 / 1.5.
+
+# ---------------------------------------------------------------------------
+# Clinical v1.20 predicates registered without moving the clinical row.
+# ---------------------------------------------------------------------------
+#
+# clinical:narrativeText and clinical:documentType (spec PR #72, tag
+# vocab/clinical-v1.20) are registered in PROPERTY_PREDICATES and
+# PROPERTY_PREDICATES_CAMEL and resolve through serialize_from_dict() and the
+# reverse predicate map, the same treatment clinical v1.16's document
+# predicates already had ahead of a ClinicalDocument model.
+#
+# The clinical row stays at 1.16, NOT 1.20, because three intervening
+# versions are unaccounted for here and one of them is a real gap, not a
+# formality:
+#   - v1.17 (2026-08-28): the SHACL nested-severity fix already named above
+#     as the reason this row was held at 1.16. Still not verified here.
+#   - v1.18 (2026-09-05): two rdfs:domain drops (clinical:allergyType,
+#     clinical:criticality), no new terms.
+#   - v1.19 (2026-09-06): NO new terms, but four rdfs:comment rewrites make
+#     clinical:startDate, clinical:endDate, clinical:abatementDate and
+#     clinical:category the CANONICAL spellings, with health:startDate /
+#     health:endDate / health:abatementDate / health:conditionCategory now
+#     documented as undefined, migration-window-only spellings. This SDK
+#     still registers only the health: spelling ("start_date" ->
+#     health:startDate, "end_date" -> health:endDate; abatement_date and
+#     category are not registered under either spelling at all). Two of the
+#     four are the sole carriers of an IPS must-support element
+#     (MedicationStatement.effective[x], Condition.category), so this is not
+#     a version-number technicality: real data would be written to what the
+#     vocabulary now calls the wrong predicate.
+# Advancing the row past 1.16 while v1.19's canonical spellings are
+# unimplemented would be the same false claim this file's core=3.8 entry
+# warns against. This is flagged as a follow-up, not fixed here: it is
+# outside the scope of the v1.20 documentType/narrativeText change.
