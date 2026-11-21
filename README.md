@@ -1,5 +1,7 @@
 # cascade-protocol
 
+> **Cascade Protocol v1.** In use today and being upgraded to Cascade Protocol v2. The v2 model is in [cascade-vocabulary](https://github.com/the-cascade-protocol/cascade-vocabulary) and [cascade-runtime-js](https://github.com/the-cascade-protocol/cascade-runtime-js).
+
 Python SDK for the [Cascade Protocol](https://cascadeprotocol.org) — a privacy-first, local-first standard for serializing personal health data as RDF/Turtle.
 
 ## Installation
